@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   brandBadge: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     borderTopLeftRadius: 6,
     borderBottomLeftRadius: 6,
