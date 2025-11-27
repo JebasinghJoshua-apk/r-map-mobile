@@ -59,6 +59,17 @@ export default function App() {
         }}
       />
       <View
+        pointerEvents="none"
+        style={[
+          styles.mapDimmer,
+          {
+            backgroundColor: isDark
+              ? "rgba(2, 6, 23, 0.65)"
+              : "rgba(241, 245, 249, 0.60)",
+          },
+        ]}
+      />
+      <View
         style={[styles.overlayWrapper, { paddingTop: topOffset }]}
         pointerEvents="box-none"
       >
@@ -93,7 +104,7 @@ function renderOverlayContent({ isDark, searchQuery, setSearchQuery }) {
       <View
         style={[
           styles.brandContainer,
-          { backgroundColor: isDark ? "rgba(15,23,42,0.7)" : "#f1f5f9" },
+          { backgroundColor: isDark ? "#f1f5f9" : "#f1f5f9" },
         ]}
       >
         <LinearGradient
@@ -104,12 +115,14 @@ function renderOverlayContent({ isDark, searchQuery, setSearchQuery }) {
         >
           <Text style={styles.brandBadgeText}>R</Text>
         </LinearGradient>
-        <Text
-          style={[styles.brandText, { color: isDark ? "#a7f3d0" : "#0f766e" }]}
-          numberOfLines={1}
-        >
-          eal Estate Map
-        </Text>
+        <View style={styles.brandLabel}>
+          <Text
+            style={[styles.brandText, { color: "#0f766e" }]}
+            numberOfLines={1}
+          >
+            eal Estate Map
+          </Text>
+        </View>
       </View>
       <View
         style={[
@@ -140,13 +153,13 @@ function renderOverlayContent({ isDark, searchQuery, setSearchQuery }) {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            { backgroundColor: isDark ? "#04c2a8" : "#04c2a8" },
+            { backgroundColor: isDark ? "#f8fafc" : "#f8fafc" },
           ]}
         >
           <Ionicons
             name="options-outline"
             size={18}
-            color={isDark ? "#022c22" : "#0f172a"}
+            color={isDark ? "#0f766e" : "#0f766e"}
           />
         </TouchableOpacity>
       </View>
@@ -167,6 +180,9 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     justifyContent: "flex-start",
+  },
+  mapDimmer: {
+    ...StyleSheet.absoluteFillObject,
   },
   overlayCard: {
     width: "90%",
@@ -204,6 +220,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  brandLabel: {
+    backgroundColor: "#fff",
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 12,
+    paddingLeft: 4,
+    paddingVertical: 6,
+  },
   brandBadgeText: {
     color: "#fff",
     fontWeight: "700",
@@ -212,9 +236,8 @@ const styles = StyleSheet.create({
   brandText: {
     fontSize: 22,
     fontWeight: "700",
-    paddingHorizontal: 12,
-    paddingLeft: 4,
-    paddingVertical: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     textAlign: "center",
     minWidth: 140,
   },
