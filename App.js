@@ -124,6 +124,7 @@ function renderOverlayContent({ isDark, searchQuery, setSearchQuery }) {
           </Text>
         </View>
       </View>
+      <View style={styles.brandSpacing} />
       <View
         style={[
           styles.searchRow,
@@ -180,16 +181,17 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     justifyContent: "flex-start",
+    paddingHorizontal: 16,
   },
   mapDimmer: {
     ...StyleSheet.absoluteFillObject,
   },
   overlayCard: {
-    width: "90%",
+    width: "100%",
     maxWidth: 390,
     borderRadius: 10,
     paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
     gap: 12,
     shadowColor: "#000",
     shadowOpacity: 0.18,
@@ -213,7 +215,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   brandBadge: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderTopLeftRadius: 6,
     borderBottomLeftRadius: 6,
@@ -232,6 +234,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 20,
+  },
+  brandSpacing: {
+    height: 2,
   },
   brandText: {
     fontSize: 22,
