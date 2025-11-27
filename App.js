@@ -124,7 +124,7 @@ function renderOverlayContent({ isDark, searchQuery, setSearchQuery }) {
           </Text>
         </View>
       </View>
-      <View style={styles.brandSpacing} />
+
       <View
         style={[
           styles.searchRow,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(15, 23, 42, 0.08)",
   },
   overlayFallback: {
-    backgroundColor: "rgba(248, 250, 252, 0.92)",
+    backgroundColor: "rgba(230, 230, 230, 0.9)",
   },
   overlayFallbackDark: {
     backgroundColor: "rgba(15, 23, 42, 0.9)",
@@ -213,6 +213,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: "hidden",
     alignSelf: "center",
+    marginBottom: 6,
+    marginTop: 6,
   },
   brandBadge: {
     paddingVertical: 10,
@@ -235,9 +237,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 20,
   },
-  brandSpacing: {
-    height: 2,
-  },
+
   brandText: {
     fontSize: 22,
     fontWeight: "700",
@@ -250,10 +250,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 12,
+    borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
+    marginBottom: 4,
   },
   searchInput: {
     flex: 1,
