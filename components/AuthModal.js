@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Modal,
   View,
@@ -5,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -17,7 +19,12 @@ export default function AuthModal({
   onChangePassword,
   onClose,
   onSubmit,
+  loading = false,
+  errorMessage = null,
+  endpoint,
 }) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
   return (
     <Modal
       transparent
@@ -91,14 +98,50 @@ export default function AuthModal({
                 ]}
                 placeholder="Enter password"
                 placeholderTextColor={isDark ? "#475569" : "#94a3b8"}
-                secureTextEntry
+                secureTextEntry={!passwordVisible}
                 value={password}
                 onChangeText={onChangePassword}
               />
+              <TouchableOpacity
+                onPress={() => setPasswordVisible((prev) => !prev)}
+                accessibilityLabel={
+                  passwordVisible ? "Hide password" : "Show password"
+                }
+              >
+                <Ionicons
+                  name={passwordVisible ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                  color={isDark ? "#94a3b8" : "#64748b"}
+                />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
-              <Text style={styles.submitText}>Login</Text>
+            {errorMessage ? (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                loading && styles.submitButtonDisabled,
+              ]}
+              onPress={onSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>Login</Text>
+              )}
             </TouchableOpacity>
+            {endpoint ? (
+              <Text
+                style={[
+                  styles.endpointText,
+                  { color: isDark ? "#94a3b8" : "#64748b" },
+                ]}
+              >
+                {endpoint}
+              </Text>
+            ) : null}
             <Text style={styles.footerText}>
               Don't have an account?{" "}
               <Text style={styles.footerLink}>Register</Text>
@@ -171,10 +214,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  submitButtonDisabled: {
+    opacity: 0.8,
+  },
   submitText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  endpointText: {
+    textAlign: "center",
+    fontSize: 12,
+    marginTop: 6,
+  },
+  errorText: {
+    color: "#f87171",
+    fontSize: 13,
+    fontWeight: "600",
   },
   footerText: {
     textAlign: "center",

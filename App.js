@@ -26,15 +26,23 @@ export default function App() {
   const [recentSearches, setRecentSearches] = useState([]);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [authModalVisible, setAuthModalVisible] = useState(false);
+  const mobileBffUrl =
+    process.env.EXPO_PUBLIC_MOBILE_BFF_URL ||
+    Constants.expoConfig?.extra?.mobileBffUrl ||
+    Constants.manifest?.extra?.mobileBffUrl ||
+    "http://localhost:5150";
   const {
     userProfile,
     loginPhone,
     loginPassword,
+    loginLoading,
+    loginError,
     setLoginPhone,
     setLoginPassword,
     login,
     logout,
-  } = useAuthState();
+    clearAuthError,
+  } = useAuthState({ baseUrl: mobileBffUrl });
   const mapRef = useRef(null);
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -133,12 +141,13 @@ export default function App() {
     if (userProfile) {
       setProfileMenuVisible((prev) => !prev);
     } else {
+      clearAuthError();
       setAuthModalVisible(true);
     }
   };
 
-  const handleAuthSubmit = () => {
-    const success = login();
+  const handleAuthSubmit = async () => {
+    const success = await login();
     if (success) {
       setAuthModalVisible(false);
       setProfileMenuVisible(true);
@@ -153,6 +162,7 @@ export default function App() {
   const closeAuthModal = () => {
     setAuthModalVisible(false);
     setLoginPassword("");
+    clearAuthError();
   };
 
   const handleMenuSelection = (action) => {
@@ -294,6 +304,9 @@ export default function App() {
         onChangePassword={setLoginPassword}
         onClose={closeAuthModal}
         onSubmit={handleAuthSubmit}
+        loading={loginLoading}
+        errorMessage={loginError}
+        endpoint={`${mobileBffUrl.replace(/\/$/, "")}/mobile/auth/login`}
       />
       <ExpoStatusBar style={isDark ? "light" : "dark"} />
     </View>

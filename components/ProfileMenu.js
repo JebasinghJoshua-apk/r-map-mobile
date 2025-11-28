@@ -37,7 +37,6 @@ export default function ProfileMenu({
           ]}
         >
           <View style={styles.header}>
-            <Ionicons name="person-circle" size={38} color="#0f766e" />
             <View style={styles.headerTextBlock}>
               <Text
                 style={[
@@ -105,9 +104,9 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
     marginBottom: 12,
   },
   headerTextBlock: {
