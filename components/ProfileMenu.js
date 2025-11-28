@@ -113,11 +113,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   greeting: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "500",
   },
   subtext: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
   },
   row: {
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   divider: {
     height: 1,
