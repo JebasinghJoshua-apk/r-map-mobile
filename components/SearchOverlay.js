@@ -42,7 +42,7 @@ export default function SearchOverlay({
         ]}
       >
         <LinearGradient
-          colors={["#04c2a8", "#0f766e"]}
+          colors={["#14B8A6", "#0f766e"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.brandBadge}
@@ -51,7 +51,7 @@ export default function SearchOverlay({
         </LinearGradient>
         <View style={styles.brandLabel}>
           <Text
-            style={[styles.brandText, { color: "#0f766e" }]}
+            style={[styles.brandText, { color: "#0D9488" }]}
             numberOfLines={1}
           >
             eal Estate Map
@@ -297,6 +297,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 20,
+    paddingHorizontal: 3,
   },
   brandLabel: {
     backgroundColor: "#fff",
