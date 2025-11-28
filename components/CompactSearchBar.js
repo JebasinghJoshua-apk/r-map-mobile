@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
+    shadowRadius: 8,
     elevation: 6,
     maxWidth: 380,
     width: "100%",
