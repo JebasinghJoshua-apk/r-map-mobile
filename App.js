@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 import Constants from "expo-constants";
@@ -39,6 +40,8 @@ export default function App() {
   const blurSupported = Platform.OS === "ios";
   const topOffset =
     Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 72 : 96;
+  const compactTopOffset =
+    Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 22 : 36;
 
   const persistRecentSearch = (suggestion) => {
     if (!suggestion?.place_id) return;
@@ -205,32 +208,79 @@ export default function App() {
         </View>
       )}
       {!overlayVisible && (
-        <TouchableOpacity
-          style={[
-            styles.overlayToggleButton,
-            {
-              top: topOffset,
-              backgroundColor: isDark
-                ? "rgba(15,23,42,0.9)"
-                : "rgba(255,255,255,0.95)",
-            },
-          ]}
-          onPress={() => setOverlayVisible(true)}
+        <View
+          pointerEvents="box-none"
+          style={[styles.compactSearchWrapper, { top: compactTopOffset }]}
         >
-          <Ionicons
-            name="search"
-            size={18}
-            color={isDark ? "#f8fafc" : "#0f172a"}
-          />
-          <Text
+          <View
             style={[
-              styles.overlayToggleText,
-              { color: isDark ? "#f8fafc" : "#0f172a" },
+              styles.compactSearchContainer,
+              {
+                backgroundColor: isDark ? "#0f172a" : "#ffffff",
+                borderColor: isDark
+                  ? "rgba(148,163,184,0.2)"
+                  : "rgba(15,23,42,0.08)",
+              },
             ]}
           >
-            Search again
-          </Text>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={["#14B8A6", "#0f766e"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.compactBrandBadge}
+            >
+              <Text style={styles.compactBrandText}>R</Text>
+            </LinearGradient>
+            <TouchableOpacity
+              style={styles.compactSearchTapArea}
+              onPress={() => setOverlayVisible(true)}
+            >
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.compactSearchText,
+                  { color: isDark ? "#e2e8f0" : "#0f172a" },
+                ]}
+              >
+                {searchQuery || "Search for places"}
+              </Text>
+            </TouchableOpacity>
+            {!!searchQuery && (
+              <TouchableOpacity
+                style={styles.compactIconButton}
+                onPress={() => {
+                  setSearchQuery("");
+                  setOverlayVisible(true);
+                }}
+                accessibilityLabel="Clear search"
+              >
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color={isDark ? "#cbd5f5" : "#475569"}
+                />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.compactIconButton}
+              onPress={() => setOverlayVisible(true)}
+              accessibilityLabel="Adjust search"
+            >
+              <Ionicons name="options-outline" size={18} color="#0f766e" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.compactIconButton}
+              onPress={() => {}}
+              accessibilityLabel="User menu"
+            >
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={isDark ? "#e2e8f0" : "#475569"}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
       <ExpoStatusBar style={isDark ? "light" : "dark"} />
     </View>
@@ -295,5 +345,50 @@ const styles = StyleSheet.create({
   overlayToggleText: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  compactSearchWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
+  compactSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    elevation: 6,
+    maxWidth: 380,
+    width: "100%",
+  },
+  compactBrandBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  compactBrandText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  compactSearchTapArea: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  compactSearchText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  compactIconButton: {
+    padding: 6,
+    borderRadius: 16,
   },
 });
