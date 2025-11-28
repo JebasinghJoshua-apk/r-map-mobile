@@ -158,7 +158,9 @@ export function useViewportProperties({
 
 function mapViewportPayload(payload) {
   return {
-    properties: mapPropertyFeatures(payload?.properties || payload?.Properties || []),
+    properties: mapPropertyFeatures(
+      payload?.properties || payload?.Properties || []
+    ),
     plots: mapPlotFeatures(payload?.plots || payload?.Plots || []),
     roads: mapRoadFeatures(payload?.roads || payload?.Roads || []),
   };
@@ -212,7 +214,11 @@ function mapPlotFeatures(list) {
         return null;
       }
       return {
-        id: feature.plotId || feature.featureId || feature.layoutId || Math.random().toString(36).slice(2),
+        id:
+          feature.plotId ||
+          feature.featureId ||
+          feature.layoutId ||
+          Math.random().toString(36).slice(2),
         polygonPaths: paths,
       };
     })
@@ -225,12 +231,18 @@ function mapRoadFeatures(list) {
   }
   return list
     .map((feature) => {
-      const paths = extractLinePaths(feature?.roadGeoJson || feature?.RoadGeoJson);
+      const paths = extractLinePaths(
+        feature?.roadGeoJson || feature?.RoadGeoJson
+      );
       if (!paths.length) {
         return null;
       }
       return {
-        id: feature.roadId || feature.featureId || feature.name || Math.random().toString(36).slice(2),
+        id:
+          feature.roadId ||
+          feature.featureId ||
+          feature.name ||
+          Math.random().toString(36).slice(2),
         paths,
       };
     })
@@ -371,7 +383,9 @@ function readLinePathsFromGeoJson(node) {
   }
   if (node.type === "LineString" && Array.isArray(node.coordinates)) {
     const coords = node.coordinates
-      .map((pair) => (Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null))
+      .map((pair) =>
+        Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null
+      )
       .filter(Boolean);
     return coords.length > 1 ? [coords] : null;
   }
@@ -380,7 +394,9 @@ function readLinePathsFromGeoJson(node) {
       .map((line) =>
         Array.isArray(line)
           ? line
-              .map((pair) => (Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null))
+              .map((pair) =>
+                Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null
+              )
               .filter(Boolean)
           : null
       )
@@ -393,7 +409,9 @@ function readLinePathsFromGeoJson(node) {
       return null;
     }
     const coords = ring
-      .map((pair) => (Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null))
+      .map((pair) =>
+        Array.isArray(pair) ? createCoordinate(pair[1], pair[0]) : null
+      )
       .filter(Boolean);
     return coords.length > 1 ? [coords] : null;
   }

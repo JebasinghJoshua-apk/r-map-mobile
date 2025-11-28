@@ -318,7 +318,11 @@ export default function App() {
             key={`${property.id}-polygon-${index}`}
             coordinates={path}
             strokeColor={property.isOwned ? "#2563eb" : "#0f766e"}
-            fillColor={property.isOwned ? "rgba(37,99,235,0.25)" : "rgba(15,118,110,0.25)"}
+            fillColor={
+              property.isOwned
+                ? "rgba(37,99,235,0.25)"
+                : "rgba(15,118,110,0.25)"
+            }
             strokeWidth={2}
           />
         );
@@ -514,7 +518,9 @@ export default function App() {
       </View>
       {currentZoom && (
         <View style={styles.zoomBadgeContainer} pointerEvents="none">
-          <Text style={styles.zoomBadgeText}>Zoom {currentZoom.toFixed(1)}x</Text>
+          <Text style={styles.zoomBadgeText}>
+            Zoom {currentZoom.toFixed(1)}x
+          </Text>
         </View>
       )}
       <ExpoStatusBar style={isDark ? "light" : "dark"} />
