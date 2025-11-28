@@ -157,10 +157,12 @@ export function useViewportProperties({
 }
 
 function mapViewportPayload(payload) {
+  const { properties, missingCenterIds } = mapPropertyFeatures(
+    payload?.properties || payload?.Properties || []
+  );
   return {
-    properties: mapPropertyFeatures(
-      payload?.properties || payload?.Properties || []
-    ),
+    properties,
+    missingCenterIds,
     plots: mapPlotFeatures(payload?.plots || payload?.Plots || []),
     roads: mapRoadFeatures(payload?.roads || payload?.Roads || []),
   };
@@ -168,10 +170,10 @@ function mapViewportPayload(payload) {
 
 function mapPropertyFeatures(list) {
   if (!Array.isArray(list)) {
-    return [];
+    return { properties: [], missingCenterIds: [] };
   }
-
-  return list
+  const missingCenterIds = [];
+  const properties = list
     .map((feature) => {
       const coordinate = extractCoordinate(
         feature?.centerGeoJson ||
@@ -182,15 +184,17 @@ function mapPropertyFeatures(list) {
       const polygonPaths = extractPolygonPaths(
         feature?.boundaryGeoJson || feature?.BoundaryGeoJson
       );
+      const id =
+        feature.featureId ||
+        feature.propertyId ||
+        feature.name ||
+        Math.random().toString(36).slice(2);
       if (!coordinate) {
+        missingCenterIds.push(id);
         return null;
       }
       return {
-        id:
-          feature.featureId ||
-          feature.propertyId ||
-          feature.name ||
-          Math.random().toString(36).slice(2),
+        id,
         name: feature.name || "Untitled",
         propertyType: feature.propertyType || "Property",
         isOwned: Boolean(feature.isOwnedByCurrentUser),
@@ -199,6 +203,8 @@ function mapPropertyFeatures(list) {
       };
     })
     .filter(Boolean);
+
+  return { properties, missingCenterIds };
 }
 
 function mapPlotFeatures(list) {
@@ -256,7 +262,11 @@ function extractCoordinate(geoJsonText) {
       typeof geoJsonText === "string" ? JSON.parse(geoJsonText) : geoJsonText;
     return readCoordinateFromGeoJson(geoJson);
   } catch (err) {
-    console.warn("Failed to parse geojson", err);
+    if (__DEV__) {
+      console.warn("Failed to parse center geojson", err, geoJsonText);
+    } else {
+      console.warn("Failed to parse center geojson", err?.message);
+    }
     return null;
   }
 }

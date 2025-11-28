@@ -11,12 +11,7 @@ import {
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import { BlurView } from "expo-blur";
-import MapView, {
-  Marker,
-  Polygon,
-  Polyline,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
+import MapView, { Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import Constants from "expo-constants";
 import SearchOverlay from "./components/SearchOverlay";
 import CompactSearchBar from "./components/CompactSearchBar";
@@ -228,7 +223,6 @@ export default function App() {
 
   const handleMenuSelection = (action) => {
     setProfileMenuVisible(false);
-    console.log(`Selected action: ${action}`);
   };
 
   useEffect(() => {
@@ -281,48 +275,20 @@ export default function App() {
     requestViewport(INITIAL_REGION, { immediate: true });
   }, [requestViewport, updateMapTypeForRegion]);
 
-  const propertyMarkers = useMemo(
-    () =>
-      viewportProperties.map((property) => (
-        <Marker
-          key={`${property.id}-marker`}
-          coordinate={property.coordinate}
-          tracksViewChanges={false}
-          title={property.name}
-          description={property.propertyType}
-        >
-          <View
-            style={[
-              styles.propertyMarker,
-              property.isOwned && styles.propertyMarkerOwned,
-            ]}
-          >
-            <Text style={styles.propertyMarkerLabel}>
-              {property.propertyType?.[0]?.toUpperCase() || "P"}
-            </Text>
-          </View>
-        </Marker>
-      )),
-    [viewportProperties]
-  );
-
   const propertyPolygons = useMemo(() => {
     const items = [];
     viewportProperties.forEach((property) => {
       if (!property.polygonPaths?.length) {
         return;
       }
+      const isLayout = property.propertyType?.toLowerCase().includes("layout");
       property.polygonPaths.forEach((path, index) => {
         items.push(
           <Polygon
             key={`${property.id}-polygon-${index}`}
             coordinates={path}
-            strokeColor={property.isOwned ? "#2563eb" : "#0f766e"}
-            fillColor={
-              property.isOwned
-                ? "rgba(37,99,235,0.25)"
-                : "rgba(15,118,110,0.25)"
-            }
+            strokeColor="rgb(22,101,52)"
+            fillColor={isLayout ? undefined : "rgba(34,197,94,0.70)"}
             strokeWidth={2}
           />
         );
@@ -411,7 +377,6 @@ export default function App() {
         {plotPolygons}
         {propertyPolygons}
         {roadPolylines}
-        {propertyMarkers}
       </MapView>
       {overlayVisible && (
         <View
@@ -566,24 +531,6 @@ const styles = StyleSheet.create({
   },
   overlayFallbackDark: {
     backgroundColor: "rgba(15, 23, 42, 0.9)",
-  },
-  propertyMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#0f766e",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  propertyMarkerOwned: {
-    backgroundColor: "#2563eb",
-  },
-  propertyMarkerLabel: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
   },
   mapStatusContainer: {
     position: "absolute",
