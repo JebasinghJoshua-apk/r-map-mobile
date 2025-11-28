@@ -358,7 +358,7 @@ export default function App() {
             key={`${road.id}-road-${index}`}
             coordinates={path}
             strokeColor="#facc15"
-            strokeWidth={4}
+            strokeWidth={1}
           />
         );
       });
