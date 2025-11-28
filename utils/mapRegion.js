@@ -2,6 +2,7 @@ const MIN_LAT_DELTA = 0.0005;
 const MIN_LNG_DELTA = 0.0005;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 20;
+const DEFAULT_COORD_PRECISION = 6;
 
 export function clampLatitude(value) {
   return Math.max(-90, Math.min(90, value));
@@ -45,8 +46,18 @@ export function createCoordinate(lat, lng) {
   if (typeof lat !== "number" || typeof lng !== "number") {
     return null;
   }
+  const latitude = clampLatitude(lat);
+  const longitude = clampLongitude(lng);
   return {
-    latitude: clampLatitude(lat),
-    longitude: clampLongitude(lng),
+    latitude: roundToPrecision(latitude),
+    longitude: roundToPrecision(longitude),
   };
+}
+
+function roundToPrecision(value, decimals = DEFAULT_COORD_PRECISION) {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
 }

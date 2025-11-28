@@ -6,6 +6,7 @@ import {
 } from "../utils/mapRegion";
 
 const DEFAULT_DEBOUNCE_MS = 450;
+const COORD_EPSILON = 0.00001;
 
 export function useViewportProperties({
   baseUrl,
@@ -93,9 +94,21 @@ export function useViewportProperties({
         }
 
         const normalized = mapViewportPayload(payload);
-        setProperties(normalized.properties);
-        setPlots(normalized.plots);
-        setRoads(normalized.roads);
+        setProperties((prev) =>
+          hasPropertyDiff(prev, normalized.properties)
+            ? normalized.properties
+            : prev
+        );
+        setPlots((prev) =>
+          hasFeatureDiff(prev, normalized.plots)
+            ? normalized.plots
+            : prev
+        );
+        setRoads((prev) =>
+          hasFeatureDiff(prev, normalized.roads)
+            ? normalized.roads
+            : prev
+        );
         setError(null);
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -115,9 +128,24 @@ export function useViewportProperties({
     [authToken, normalizedBaseUrl]
   );
 
+  const regionHash = useCallback((region) => {
+    if (!region) return "";
+    return [
+      region.latitude?.toFixed(4),
+      region.longitude?.toFixed(4),
+      region.latitudeDelta?.toFixed(4),
+      region.longitudeDelta?.toFixed(4),
+    ].join(":");
+  }, []);
+
   const requestViewport = useCallback(
     (region, { immediate = false } = {}) => {
       if (!region) return;
+      const currentHash = regionHash(region);
+      const previousHash = regionHash(lastViewportRef.current);
+      if (currentHash === previousHash && !immediate) {
+        return;
+      }
       lastViewportRef.current = region;
       if (immediate) {
         if (debounceRef.current) {
@@ -136,7 +164,7 @@ export function useViewportProperties({
         fetchViewport(region);
       }, debounceMs);
     },
-    [debounceMs, fetchViewport]
+    [debounceMs, fetchViewport, regionHash]
   );
 
   const refetch = useCallback(() => {
@@ -166,6 +194,63 @@ function mapViewportPayload(payload) {
     plots: mapPlotFeatures(payload?.plots || payload?.Plots || []),
     roads: mapRoadFeatures(payload?.roads || payload?.Roads || []),
   };
+}
+
+function hasPropertyDiff(current, next) {
+  if (current === next) {
+    return false;
+  }
+  if (!Array.isArray(current) || !Array.isArray(next)) {
+    return true;
+  }
+  if (current.length !== next.length) {
+    return true;
+  }
+  const currentMap = new Map(current.map((item) => [item.id, item]));
+  for (const item of next) {
+    const existing = currentMap.get(item.id);
+    if (!existing) {
+      return true;
+    }
+    if (coordinatesDiffer(existing.coordinate, item.coordinate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function coordinatesDiffer(a, b, epsilon = COORD_EPSILON) {
+  if (!a && !b) return false;
+  if (!a || !b) return true;
+  if (!Number.isFinite(a.latitude) || !Number.isFinite(a.longitude)) {
+    return true;
+  }
+  if (!Number.isFinite(b.latitude) || !Number.isFinite(b.longitude)) {
+    return true;
+  }
+  return (
+    Math.abs(a.latitude - b.latitude) > epsilon ||
+    Math.abs(a.longitude - b.longitude) > epsilon
+  );
+}
+
+function hasFeatureDiff(current, next) {
+  if (current === next) {
+    return false;
+  }
+  if (!Array.isArray(current) || !Array.isArray(next)) {
+    return true;
+  }
+  if (current.length !== next.length) {
+    return true;
+  }
+  const currentIds = new Set(current.map((item) => item.id));
+  for (const item of next) {
+    if (!currentIds.has(item.id)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function mapPropertyFeatures(list) {

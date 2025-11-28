@@ -11,7 +11,12 @@ import {
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import { BlurView } from "expo-blur";
-import MapView, { Polygon, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, {
+  Marker,
+  Polygon,
+  Polyline,
+  PROVIDER_GOOGLE,
+} from "react-native-maps";
 import Constants from "expo-constants";
 import SearchOverlay from "./components/SearchOverlay";
 import CompactSearchBar from "./components/CompactSearchBar";
@@ -73,6 +78,8 @@ export default function App() {
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(null);
+  const [showPolygons, setShowPolygons] = useState(false);
+  const [markerViewsFrozen, setMarkerViewsFrozen] = useState(false);
   const mobileBffUrl =
     process.env.EXPO_PUBLIC_MOBILE_BFF_URL ||
     Constants.expoConfig?.extra?.mobileBffUrl ||
@@ -92,6 +99,31 @@ export default function App() {
     clearAuthError,
   } = useAuthState({ baseUrl: mobileBffUrl });
   const mapRef = useRef(null);
+  const markerFreezeTimeoutRef = useRef(null);
+  const thawMarkersTemporarily = useCallback(() => {
+    if (markerFreezeTimeoutRef.current) {
+      clearTimeout(markerFreezeTimeoutRef.current);
+    }
+    setMarkerViewsFrozen(false);
+    markerFreezeTimeoutRef.current = setTimeout(() => {
+      setMarkerViewsFrozen(true);
+      markerFreezeTimeoutRef.current = null;
+    }, 400);
+  }, []);
+
+  const freezeMarkersImmediately = useCallback(() => {
+    if (markerFreezeTimeoutRef.current) {
+      clearTimeout(markerFreezeTimeoutRef.current);
+      markerFreezeTimeoutRef.current = null;
+    }
+    setMarkerViewsFrozen(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (markerFreezeTimeoutRef.current) {
+      clearTimeout(markerFreezeTimeoutRef.current);
+    }
+  }, []);
   const {
     properties: viewportProperties,
     plots: viewportPlots,
@@ -252,15 +284,26 @@ export default function App() {
     }
   }, [overlayVisible]);
 
-  const updateMapTypeForRegion = useCallback((region) => {
-    if (!region) return;
-    const zoomLevel = computeApproximateZoom(region);
-    setCurrentZoom(zoomLevel);
-    setMapType((prev) => {
-      const next = zoomLevel >= HYBRID_ZOOM_THRESHOLD ? "hybrid" : "standard";
-      return prev === next ? prev : next;
-    });
-  }, []);
+  const updateMapTypeForRegion = useCallback(
+    (region) => {
+      if (!region) return;
+      const zoomLevel = computeApproximateZoom(region);
+      setCurrentZoom(zoomLevel);
+      const nextShowPolygons = zoomLevel > 16;
+      setShowPolygons(nextShowPolygons);
+      if (nextShowPolygons) {
+        freezeMarkersImmediately();
+      } else {
+        thawMarkersTemporarily();
+      }
+      setMapType((prev) => {
+        const next =
+          zoomLevel >= HYBRID_ZOOM_THRESHOLD ? "hybrid" : "standard";
+        return prev === next ? prev : next;
+      });
+    },
+    [freezeMarkersImmediately, thawMarkersTemporarily]
+  );
 
   const handleRegionChangeComplete = useCallback(
     (region) => {
@@ -275,7 +318,17 @@ export default function App() {
     requestViewport(INITIAL_REGION, { immediate: true });
   }, [requestViewport, updateMapTypeForRegion]);
 
+  useEffect(() => {
+    if (showPolygons) {
+      return;
+    }
+    thawMarkersTemporarily();
+  }, [showPolygons, viewportProperties, thawMarkersTemporarily]);
+
   const propertyPolygons = useMemo(() => {
+    if (!showPolygons) {
+      return null;
+    }
     const items = [];
     viewportProperties.forEach((property) => {
       if (!property.polygonPaths?.length) {
@@ -295,7 +348,29 @@ export default function App() {
       });
     });
     return items;
-  }, [viewportProperties]);
+  }, [showPolygons, viewportProperties]);
+
+  const propertyMarkers = useMemo(() => {
+    if (showPolygons) {
+      return null;
+    }
+    return viewportProperties.map((property) => {
+      return (
+        <Marker
+          key={`${property.id}-marker`}
+          coordinate={property.coordinate}
+          title={property.name}
+          description={property.propertyType}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={!markerViewsFrozen}
+        >
+          <View style={styles.locationMarkerOuter}>
+            <View style={styles.locationMarkerInner} />
+          </View>
+        </Marker>
+      );
+    });
+  }, [markerViewsFrozen, showPolygons, viewportProperties]);
 
   const plotPolygons = useMemo(() => {
     const items = [];
@@ -377,6 +452,7 @@ export default function App() {
         {plotPolygons}
         {propertyPolygons}
         {roadPolylines}
+        {propertyMarkers}
       </MapView>
       {overlayVisible && (
         <View
@@ -581,5 +657,23 @@ const styles = StyleSheet.create({
   zoomBadgeText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  locationMarkerOuter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(94, 234, 212,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(15, 118, 110,0.25)",
+  },
+  locationMarkerInner: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#0d9488",
+    borderWidth: 2,
+    borderColor: "#e6fffa",
   },
 });
