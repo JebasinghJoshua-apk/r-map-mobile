@@ -15,13 +15,19 @@ export default function SearchOverlay({
   isDark,
   searchQuery,
   onChangeQuery,
+  onClearQuery,
   onSuggestionPress,
   onSubmitEditing,
   suggestions,
   isFetchingSuggestions,
   suggestionError,
+  recentSearches = [],
+  onRecentSelect,
+  onClearRecent,
 }) {
   const hasSuggestions = suggestions.length > 0;
+  const showRecents = !hasSuggestions && recentSearches.length > 0;
+  const attachResults = hasSuggestions || showRecents;
   const backgroundColor = useMemo(
     () => (isDark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.95)"),
     [isDark]
@@ -58,7 +64,7 @@ export default function SearchOverlay({
           style={[
             styles.searchRow,
             { backgroundColor },
-            hasSuggestions && styles.searchRowAttached,
+            attachResults && styles.searchRowAttached,
           ]}
         >
           <Ionicons
@@ -78,6 +84,19 @@ export default function SearchOverlay({
             returnKeyType="search"
             onSubmitEditing={onSubmitEditing}
           />
+          {!!searchQuery && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={onClearQuery}
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons
+                name="close"
+                size={16}
+                color={isDark ? "#475569" : "#475569"}
+              />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[
               styles.filterButton,
@@ -169,6 +188,88 @@ export default function SearchOverlay({
             ))}
           </ScrollView>
         )}
+
+        {showRecents && (
+          <View
+            style={[
+              styles.recentList,
+              {
+                backgroundColor: isDark
+                  ? "rgba(15,23,42,0.92)"
+                  : "rgba(255,255,255,0.96)",
+              },
+              styles.recentListAttached,
+            ]}
+          >
+            <View style={styles.recentHeader}>
+              <Text
+                style={[
+                  styles.recentLabel,
+                  { color: isDark ? "#e2e8f0" : "#94a3b8" },
+                ]}
+              >
+                RECENT
+              </Text>
+              <TouchableOpacity onPress={onClearRecent}>
+                <Text
+                  style={[
+                    styles.clearLabel,
+                    { color: isDark ? "#e2e8f0" : "#94a3b8" },
+                  ]}
+                >
+                  CLEAR
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {recentSearches.map((recent, index) => (
+              <TouchableOpacity
+                key={recent.place_id + index}
+                style={[
+                  styles.suggestionRow,
+                  {
+                    borderBottomWidth:
+                      index === recentSearches.length - 1
+                        ? 0
+                        : StyleSheet.hairlineWidth,
+                    borderBottomColor: isDark
+                      ? "rgba(148, 163, 184, 0.3)"
+                      : "rgba(15, 23, 42, 0.08)",
+                  },
+                ]}
+                onPress={() => onRecentSelect?.(recent)}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={16}
+                  color={isDark ? "#cbd5f5" : "#475569"}
+                />
+                <View style={styles.suggestionTextWrapper}>
+                  <Text
+                    style={[
+                      styles.suggestionPrimary,
+                      { color: isDark ? "#f8fafc" : "#0f172a" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {recent.structured_formatting?.main_text ??
+                      recent.description}
+                  </Text>
+                  {recent.structured_formatting?.secondary_text ? (
+                    <Text
+                      style={[
+                        styles.suggestionSecondary,
+                        { color: isDark ? "#94a3b8" : "#64748b" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {recent.structured_formatting.secondary_text}
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     </>
   );
@@ -236,6 +337,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 6,
   },
+  clearButton: {
+    marginRight: 0,
+    padding: 0,
+    borderRadius: 8,
+  },
   suggestionsList: {
     marginTop: 0,
     borderRadius: 12,
@@ -245,6 +351,31 @@ const styles = StyleSheet.create({
   suggestionsListAttached: {
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
+  },
+  recentList: {
+    borderRadius: 12,
+    marginTop: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
+  },
+  recentListAttached: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  recentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  recentLabel: {
+    fontSize: 10,
+    letterSpacing: 1,
+    fontWeight: "600",
+  },
+  clearLabel: {
+    fontSize: 10,
+    fontWeight: "600",
   },
   suggestionRow: {
     flexDirection: "row",

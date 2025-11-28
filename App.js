@@ -22,6 +22,7 @@ export default function App() {
   const isDark = colorScheme === "dark";
   const [searchQuery, setSearchQuery] = useState("");
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const [recentSearches, setRecentSearches] = useState([]);
   const mapRef = useRef(null);
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -38,6 +39,23 @@ export default function App() {
   const blurSupported = Platform.OS === "ios";
   const topOffset =
     Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 72 : 96;
+
+  const persistRecentSearch = (suggestion) => {
+    if (!suggestion?.place_id) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter(
+        (item) => item.place_id !== suggestion.place_id
+      );
+      return [
+        {
+          place_id: suggestion.place_id,
+          description: suggestion.description,
+          structured_formatting: suggestion.structured_formatting,
+        },
+        ...filtered,
+      ].slice(0, 5);
+    });
+  };
 
   const handleSuggestionPress = async (suggestion) => {
     if (!mapsApiKey) return;
@@ -68,11 +86,18 @@ export default function App() {
           750
         );
       }
+      persistRecentSearch(suggestion);
       setOverlayVisible(false);
     } catch (error) {
       console.warn("Place details error", error);
     }
   };
+
+  const handleRecentSelect = (recentEntry) => {
+    handleSuggestionPress(recentEntry);
+  };
+
+  const handleClearRecent = () => setRecentSearches([]);
 
   const handleSubmitEditing = () => {
     if (suggestions.length > 0) {
@@ -142,11 +167,15 @@ export default function App() {
                 isDark={isDark}
                 searchQuery={searchQuery}
                 onChangeQuery={setSearchQuery}
+                onClearQuery={() => setSearchQuery("")}
                 suggestions={suggestions}
                 onSuggestionPress={handleSuggestionPress}
                 onSubmitEditing={handleSubmitEditing}
                 isFetchingSuggestions={isFetchingSuggestions}
                 suggestionError={suggestionError}
+                recentSearches={recentSearches}
+                onRecentSelect={handleRecentSelect}
+                onClearRecent={handleClearRecent}
               />
             </BlurView>
           ) : (
@@ -161,11 +190,15 @@ export default function App() {
                 isDark={isDark}
                 searchQuery={searchQuery}
                 onChangeQuery={setSearchQuery}
+                onClearQuery={() => setSearchQuery("")}
                 suggestions={suggestions}
                 onSuggestionPress={handleSuggestionPress}
                 onSubmitEditing={handleSubmitEditing}
                 isFetchingSuggestions={isFetchingSuggestions}
                 suggestionError={suggestionError}
+                recentSearches={recentSearches}
+                onRecentSelect={handleRecentSelect}
+                onClearRecent={handleClearRecent}
               />
             </View>
           )}

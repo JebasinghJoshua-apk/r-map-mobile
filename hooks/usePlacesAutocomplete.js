@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 350;
+const TAMIL_NADU_BOUNDS = {
+  southwest: { lat: 8.076, lng: 76.199 },
+  northeast: { lat: 13.561, lng: 80.35 },
+};
+const LOCATION_RECTANGLE = `rectangle:${TAMIL_NADU_BOUNDS.southwest.lat},${TAMIL_NADU_BOUNDS.southwest.lng}|${TAMIL_NADU_BOUNDS.northeast.lat},${TAMIL_NADU_BOUNDS.northeast.lng}`;
 
 export function usePlacesAutocomplete(searchQuery, apiKey) {
   const [suggestions, setSuggestions] = useState([]);
@@ -36,6 +41,8 @@ export function usePlacesAutocomplete(searchQuery, apiKey) {
           input: trimmed,
           key: apiKey,
           language: "en",
+          components: "country:in",
+          locationrestriction: LOCATION_RECTANGLE,
         });
 
         const response = await fetch(
