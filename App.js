@@ -52,7 +52,7 @@ export default function App() {
   const topOffset =
     Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 72 : 96;
   const compactTopOffset =
-    Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 22 : 36;
+    Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 18 : 36;
 
   const persistRecentSearch = (suggestion) => {
     if (!suggestion?.place_id) return;
