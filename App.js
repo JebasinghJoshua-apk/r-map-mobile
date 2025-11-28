@@ -119,11 +119,14 @@ export default function App() {
     setMarkerViewsFrozen(true);
   }, []);
 
-  useEffect(() => () => {
-    if (markerFreezeTimeoutRef.current) {
-      clearTimeout(markerFreezeTimeoutRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (markerFreezeTimeoutRef.current) {
+        clearTimeout(markerFreezeTimeoutRef.current);
+      }
+    },
+    []
+  );
   const {
     properties: viewportProperties,
     plots: viewportPlots,
@@ -297,8 +300,7 @@ export default function App() {
         thawMarkersTemporarily();
       }
       setMapType((prev) => {
-        const next =
-          zoomLevel >= HYBRID_ZOOM_THRESHOLD ? "hybrid" : "standard";
+        const next = zoomLevel >= HYBRID_ZOOM_THRESHOLD ? "hybrid" : "standard";
         return prev === next ? prev : next;
       });
     },

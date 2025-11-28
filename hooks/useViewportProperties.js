@@ -100,14 +100,10 @@ export function useViewportProperties({
             : prev
         );
         setPlots((prev) =>
-          hasFeatureDiff(prev, normalized.plots)
-            ? normalized.plots
-            : prev
+          hasFeatureDiff(prev, normalized.plots) ? normalized.plots : prev
         );
         setRoads((prev) =>
-          hasFeatureDiff(prev, normalized.roads)
-            ? normalized.roads
-            : prev
+          hasFeatureDiff(prev, normalized.roads) ? normalized.roads : prev
         );
         setError(null);
       } catch (err) {
