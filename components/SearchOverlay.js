@@ -165,7 +165,7 @@ export default function SearchOverlay({
                   <Text
                     style={[
                       styles.suggestionPrimary,
-                      { color: isDark ? "#f8fafc" : "#0f172a" },
+                      { color: isDark ? "#94a3b8" : "#6B7280" },
                     ]}
                     numberOfLines={1}
                   >
@@ -176,7 +176,7 @@ export default function SearchOverlay({
                     <Text
                       style={[
                         styles.suggestionSecondary,
-                        { color: isDark ? "#94a3b8" : "#64748b" },
+                        { color: isDark ? "#94a3b8" : "#9CA3AF" },
                       ]}
                       numberOfLines={1}
                     >
@@ -247,7 +247,7 @@ export default function SearchOverlay({
                   <Text
                     style={[
                       styles.suggestionPrimary,
-                      { color: isDark ? "#f8fafc" : "#0f172a" },
+                      { color: isDark ? "#f8fafc" : "#6B7280" },
                     ]}
                     numberOfLines={1}
                   >
@@ -258,7 +258,7 @@ export default function SearchOverlay({
                     <Text
                       style={[
                         styles.suggestionSecondary,
-                        { color: isDark ? "#94a3b8" : "#64748b" },
+                        { color: isDark ? "#94a3b8" : "#9CA3AF" },
                       ]}
                       numberOfLines={1}
                     >
