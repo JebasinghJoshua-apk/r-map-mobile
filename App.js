@@ -5,18 +5,18 @@ import {
   StatusBar as RNStatusBar,
   StyleSheet,
   View,
-  Text,
-  TouchableOpacity,
   useColorScheme,
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 import Constants from "expo-constants";
 import SearchOverlay from "./components/SearchOverlay";
+import CompactSearchBar from "./components/CompactSearchBar";
+import ProfileMenu from "./components/ProfileMenu";
+import AuthModal from "./components/AuthModal";
 import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
+import { useAuthState } from "./hooks/useAuthState";
 
 export default function App() {
   const colorScheme = useColorScheme();
@@ -24,6 +24,17 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [recentSearches, setRecentSearches] = useState([]);
+  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const {
+    userProfile,
+    loginPhone,
+    loginPassword,
+    setLoginPhone,
+    setLoginPassword,
+    login,
+    logout,
+  } = useAuthState();
   const mapRef = useRef(null);
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -108,6 +119,47 @@ export default function App() {
     }
   };
 
+  const showSearchOverlay = () => {
+    setOverlayVisible(true);
+    setProfileMenuVisible(false);
+  };
+
+  const handleCompactClear = () => {
+    setSearchQuery("");
+    showSearchOverlay();
+  };
+
+  const handleProfilePress = () => {
+    if (userProfile) {
+      setProfileMenuVisible((prev) => !prev);
+    } else {
+      setAuthModalVisible(true);
+    }
+  };
+
+  const handleAuthSubmit = () => {
+    const success = login();
+    if (success) {
+      setAuthModalVisible(false);
+      setProfileMenuVisible(true);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setProfileMenuVisible(false);
+  };
+
+  const closeAuthModal = () => {
+    setAuthModalVisible(false);
+    setLoginPassword("");
+  };
+
+  const handleMenuSelection = (action) => {
+    setProfileMenuVisible(false);
+    console.log(`Selected action: ${action}`);
+  };
+
   useEffect(() => {
     const applyNavigationBarTheme = async () => {
       const available = await NavigationBar.isAvailableAsync();
@@ -128,6 +180,12 @@ export default function App() {
 
     applyNavigationBarTheme();
   }, [colorScheme, isDark]);
+
+  useEffect(() => {
+    if (overlayVisible) {
+      setProfileMenuVisible(false);
+    }
+  }, [overlayVisible]);
 
   return (
     <View style={styles.container}>
@@ -208,80 +266,35 @@ export default function App() {
         </View>
       )}
       {!overlayVisible && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.compactSearchWrapper, { top: compactTopOffset }]}
-        >
-          <View
-            style={[
-              styles.compactSearchContainer,
-              {
-                backgroundColor: isDark ? "#0f172a" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(148,163,184,0.2)"
-                  : "rgba(15,23,42,0.08)",
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={["#14B8A6", "#0f766e"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.compactBrandBadge}
-            >
-              <Text style={styles.compactBrandText}>R</Text>
-            </LinearGradient>
-            <TouchableOpacity
-              style={styles.compactSearchTapArea}
-              onPress={() => setOverlayVisible(true)}
-            >
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.compactSearchText,
-                  { color: isDark ? "#e2e8f0" : "#4B5563" },
-                ]}
-              >
-                {searchQuery || "Search for places"}
-              </Text>
-            </TouchableOpacity>
-            {!!searchQuery && (
-              <TouchableOpacity
-                style={styles.compactIconButton}
-                onPress={() => {
-                  setSearchQuery("");
-                  setOverlayVisible(true);
-                }}
-                accessibilityLabel="Clear search"
-              >
-                <Ionicons
-                  name="close"
-                  size={18}
-                  color={isDark ? "#cbd5f5" : "#475569"}
-                />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.compactIconButton}
-              onPress={() => setOverlayVisible(true)}
-              accessibilityLabel="Adjust search"
-            >
-              <Ionicons name="options-outline" size={18} color="#0f766e" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.compactIconButton}
-              onPress={() => {}}
-              accessibilityLabel="User menu"
-            >
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color={isDark ? "#e2e8f0" : "#475569"}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <CompactSearchBar
+          isDark={isDark}
+          searchQuery={searchQuery}
+          topOffset={compactTopOffset}
+          onShowOverlay={showSearchOverlay}
+          onClearSearch={handleCompactClear}
+          userProfile={userProfile}
+          onProfilePress={handleProfilePress}
+        />
       )}
+      <ProfileMenu
+        isDark={isDark}
+        visible={profileMenuVisible && !!userProfile}
+        topOffset={compactTopOffset + 60}
+        userProfile={userProfile}
+        onDismiss={() => setProfileMenuVisible(false)}
+        onLogout={handleLogout}
+        onNavigateProperties={() => handleMenuSelection("properties")}
+      />
+      <AuthModal
+        isDark={isDark}
+        visible={authModalVisible}
+        phone={loginPhone}
+        password={loginPassword}
+        onChangePhone={setLoginPhone}
+        onChangePassword={setLoginPassword}
+        onClose={closeAuthModal}
+        onSubmit={handleAuthSubmit}
+      />
       <ExpoStatusBar style={isDark ? "light" : "dark"} />
     </View>
   );
@@ -324,71 +337,5 @@ const styles = StyleSheet.create({
   },
   overlayFallbackDark: {
     backgroundColor: "rgba(15, 23, 42, 0.9)",
-  },
-  overlayToggleButton: {
-    position: "absolute",
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: "rgba(15, 23, 42, 0.08)",
-  },
-  overlayToggleText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  compactSearchWrapper: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  compactSearchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 6,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 6,
-    maxWidth: 380,
-    width: "100%",
-  },
-  compactBrandBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  compactBrandText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 18,
-  },
-  compactSearchTapArea: {
-    flex: 1,
-    paddingHorizontal: 4,
-  },
-  compactSearchText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  compactIconButton: {
-    padding: 6,
-    borderRadius: 16,
   },
 });
