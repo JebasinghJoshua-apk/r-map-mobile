@@ -239,7 +239,7 @@ export default function App() {
                 numberOfLines={1}
                 style={[
                   styles.compactSearchText,
-                  { color: isDark ? "#e2e8f0" : "#0f172a" },
+                  { color: isDark ? "#e2e8f0" : "#4B5563" },
                 ]}
               >
                 {searchQuery || "Search for places"}
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   compactSearchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 999,
+    borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 6,
     gap: 6,
@@ -370,14 +370,14 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   compactBrandBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderRadius: 4,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
   compactBrandText: {
     color: "#fff",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 18,
   },
   compactSearchTapArea: {
     flex: 1,
