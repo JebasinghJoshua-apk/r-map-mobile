@@ -339,8 +339,8 @@ export default function App() {
           <Polygon
             key={`${plot.id}-plot-${index}`}
             coordinates={path}
-            strokeColor="#f97316"
-            fillColor="rgba(249,115,22,0.25)"
+            strokeColor="#064E3B"
+            fillColor="rgba(4, 120, 87,0.25)"
             strokeWidth={2}
           />
         );
@@ -354,11 +354,12 @@ export default function App() {
     viewportRoads.forEach((road) => {
       road.paths?.forEach((path, index) => {
         items.push(
-          <Polyline
+          <Polygon
             key={`${road.id}-road-${index}`}
             coordinates={path}
-            strokeColor="#facc15"
-            strokeWidth={1}
+            strokeColor="#374151"
+            fillColor="rgba(17, 24, 39,0.30)"
+            strokeWidth={3}
           />
         );
       });
