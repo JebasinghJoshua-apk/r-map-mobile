@@ -1,15 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import {
+  ActivityIndicator,
   Platform,
   StatusBar as RNStatusBar,
   StyleSheet,
+  Text,
   View,
   useColorScheme,
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import { BlurView } from "expo-blur";
-import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, {
+  Marker,
+  Polygon,
+  Polyline,
+  PROVIDER_GOOGLE,
+} from "react-native-maps";
 import Constants from "expo-constants";
 import SearchOverlay from "./components/SearchOverlay";
 import CompactSearchBar from "./components/CompactSearchBar";
@@ -17,15 +24,60 @@ import ProfileMenu from "./components/ProfileMenu";
 import AuthModal from "./components/AuthModal";
 import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
 import { useAuthState } from "./hooks/useAuthState";
+import { useViewportProperties } from "./hooks/useViewportProperties";
+import { computeApproximateZoom } from "./utils/mapRegion";
+
+const INITIAL_REGION = {
+  latitude: 13.0827,
+  longitude: 80.2707,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+const HYBRID_ZOOM_THRESHOLD = 15.5;
+const LIGHT_MAP_STYLE = [
+  {
+    elementType: "geometry",
+    stylers: [{ color: "#f5f5f5" }],
+  },
+  {
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#616161" }],
+  },
+  {
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#f5f5f5" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [{ color: "#eeeeee" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#ffffff" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#c9e5ff" }],
+  },
+];
 
 export default function App() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const [searchQuery, setSearchQuery] = useState("");
+  const [mapType, setMapType] = useState("standard");
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [recentSearches, setRecentSearches] = useState([]);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [currentZoom, setCurrentZoom] = useState(null);
   const mobileBffUrl =
     process.env.EXPO_PUBLIC_MOBILE_BFF_URL ||
     Constants.expoConfig?.extra?.mobileBffUrl ||
@@ -33,6 +85,7 @@ export default function App() {
     "http://localhost:5150";
   const {
     userProfile,
+    authToken,
     loginPhone,
     loginPassword,
     loginLoading,
@@ -44,6 +97,14 @@ export default function App() {
     clearAuthError,
   } = useAuthState({ baseUrl: mobileBffUrl });
   const mapRef = useRef(null);
+  const {
+    properties: viewportProperties,
+    plots: viewportPlots,
+    roads: viewportRoads,
+    loading: viewportLoading,
+    error: viewportError,
+    requestViewport,
+  } = useViewportProperties({ baseUrl: mobileBffUrl, authToken });
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     Constants.expoConfig?.extra?.googleMapsApiKey ||
@@ -197,19 +258,156 @@ export default function App() {
     }
   }, [overlayVisible]);
 
+  const updateMapTypeForRegion = useCallback((region) => {
+    if (!region) return;
+    const zoomLevel = computeApproximateZoom(region);
+    setCurrentZoom(zoomLevel);
+    setMapType((prev) => {
+      const next = zoomLevel >= HYBRID_ZOOM_THRESHOLD ? "hybrid" : "standard";
+      return prev === next ? prev : next;
+    });
+  }, []);
+
+  const handleRegionChangeComplete = useCallback(
+    (region) => {
+      updateMapTypeForRegion(region);
+      requestViewport(region);
+    },
+    [requestViewport, updateMapTypeForRegion]
+  );
+
+  useEffect(() => {
+    updateMapTypeForRegion(INITIAL_REGION);
+    requestViewport(INITIAL_REGION, { immediate: true });
+  }, [requestViewport, updateMapTypeForRegion]);
+
+  const propertyMarkers = useMemo(
+    () =>
+      viewportProperties.map((property) => (
+        <Marker
+          key={`${property.id}-marker`}
+          coordinate={property.coordinate}
+          tracksViewChanges={false}
+          title={property.name}
+          description={property.propertyType}
+        >
+          <View
+            style={[
+              styles.propertyMarker,
+              property.isOwned && styles.propertyMarkerOwned,
+            ]}
+          >
+            <Text style={styles.propertyMarkerLabel}>
+              {property.propertyType?.[0]?.toUpperCase() || "P"}
+            </Text>
+          </View>
+        </Marker>
+      )),
+    [viewportProperties]
+  );
+
+  const propertyPolygons = useMemo(() => {
+    const items = [];
+    viewportProperties.forEach((property) => {
+      if (!property.polygonPaths?.length) {
+        return;
+      }
+      property.polygonPaths.forEach((path, index) => {
+        items.push(
+          <Polygon
+            key={`${property.id}-polygon-${index}`}
+            coordinates={path}
+            strokeColor={property.isOwned ? "#2563eb" : "#0f766e"}
+            fillColor={property.isOwned ? "rgba(37,99,235,0.25)" : "rgba(15,118,110,0.25)"}
+            strokeWidth={2}
+          />
+        );
+      });
+    });
+    return items;
+  }, [viewportProperties]);
+
+  const plotPolygons = useMemo(() => {
+    const items = [];
+    viewportPlots.forEach((plot) => {
+      plot.polygonPaths?.forEach((path, index) => {
+        items.push(
+          <Polygon
+            key={`${plot.id}-plot-${index}`}
+            coordinates={path}
+            strokeColor="#f97316"
+            fillColor="rgba(249,115,22,0.25)"
+            strokeWidth={2}
+          />
+        );
+      });
+    });
+    return items;
+  }, [viewportPlots]);
+
+  const roadPolylines = useMemo(() => {
+    const items = [];
+    viewportRoads.forEach((road) => {
+      road.paths?.forEach((path, index) => {
+        items.push(
+          <Polyline
+            key={`${road.id}-road-${index}`}
+            coordinates={path}
+            strokeColor="#facc15"
+            strokeWidth={4}
+          />
+        );
+      });
+    });
+    return items;
+  }, [viewportRoads]);
+
+  const renderMapStatus = () => {
+    if (viewportLoading) {
+      return (
+        <View style={[styles.mapStatusPill, styles.mapStatusLoading]}>
+          <ActivityIndicator size="small" color="#fff" />
+          <Text style={styles.mapStatusText}>Updating map…</Text>
+        </View>
+      );
+    }
+    if (viewportError) {
+      return (
+        <View style={[styles.mapStatusPill, styles.mapStatusError]}>
+          <Text style={styles.mapStatusText} numberOfLines={2}>
+            {viewportError}
+          </Text>
+        </View>
+      );
+    }
+    if (viewportProperties.length > 0) {
+      return (
+        <View style={[styles.mapStatusPill, styles.mapStatusInfo]}>
+          <Text style={styles.mapStatusText}>
+            {viewportProperties.length} properties in view
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
   return (
     <View style={styles.container}>
       <MapView
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFill}
         ref={mapRef}
-        initialRegion={{
-          latitude: 13.0827,
-          longitude: 80.2707,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-      />
+        initialRegion={INITIAL_REGION}
+        onRegionChangeComplete={handleRegionChangeComplete}
+        mapType={mapType}
+        customMapStyle={mapType === "standard" ? LIGHT_MAP_STYLE : undefined}
+      >
+        {plotPolygons}
+        {propertyPolygons}
+        {roadPolylines}
+        {propertyMarkers}
+      </MapView>
       {overlayVisible && (
         <View
           pointerEvents="none"
@@ -308,6 +506,17 @@ export default function App() {
         errorMessage={loginError}
         endpoint={`${mobileBffUrl.replace(/\/$/, "")}/mobile/auth/login`}
       />
+      <View
+        pointerEvents="none"
+        style={[styles.mapStatusContainer, { top: compactTopOffset + 8 }]}
+      >
+        {renderMapStatus()}
+      </View>
+      {currentZoom && (
+        <View style={styles.zoomBadgeContainer} pointerEvents="none">
+          <Text style={styles.zoomBadgeText}>Zoom {currentZoom.toFixed(1)}x</Text>
+        </View>
+      )}
       <ExpoStatusBar style={isDark ? "light" : "dark"} />
     </View>
   );
@@ -350,5 +559,73 @@ const styles = StyleSheet.create({
   },
   overlayFallbackDark: {
     backgroundColor: "rgba(15, 23, 42, 0.9)",
+  },
+  propertyMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#0f766e",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  propertyMarkerOwned: {
+    backgroundColor: "#2563eb",
+  },
+  propertyMarkerLabel: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  mapStatusContainer: {
+    position: "absolute",
+    alignSelf: "center",
+  },
+  mapStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(15,23,42,0.9)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    maxWidth: 320,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  mapStatusLoading: {
+    backgroundColor: "rgba(15, 118, 110, 0.95)",
+  },
+  mapStatusError: {
+    backgroundColor: "rgba(239, 68, 68, 0.95)",
+  },
+  mapStatusInfo: {
+    backgroundColor: "rgba(15, 23, 42, 0.9)",
+  },
+  mapStatusText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  zoomBadgeContainer: {
+    position: "absolute",
+    bottom: 24,
+    right: 20,
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  zoomBadgeText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });
