@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 999,
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 6,
     gap: 6,
@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   brandBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderRadius: 6,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
   brandText: {
