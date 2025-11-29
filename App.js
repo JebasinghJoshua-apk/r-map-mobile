@@ -26,6 +26,7 @@ import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
 import { useAuthState } from "./hooks/useAuthState";
 import { useViewportProperties } from "./hooks/useViewportProperties";
 import { computeApproximateZoom } from "./utils/mapRegion";
+import { DRAWING_STYLES } from "./constants/drawingStyles";
 
 const INITIAL_REGION = {
   latitude: 13.0827,
@@ -34,6 +35,7 @@ const INITIAL_REGION = {
   longitudeDelta: 0.05,
 };
 const HYBRID_ZOOM_THRESHOLD = 15.5;
+const PLOT_LABEL_ZOOM_THRESHOLD = 17.5;
 const LIGHT_MAP_STYLE = [
   {
     elementType: "geometry",
@@ -68,6 +70,68 @@ const LIGHT_MAP_STYLE = [
   },
 ];
 
+const hexToRgba = (hex, alpha = 1) => {
+  if (typeof hex !== "string") return hex;
+  const normalized = hex.replace("#", "");
+  if (normalized.length !== 6) return hex;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  if ([r, g, b].some((value) => Number.isNaN(value))) {
+    return hex;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const buildPolygonStyleProps = (style) => ({
+  strokeColor: hexToRgba(style.strokeColor, style.strokeOpacity ?? 1),
+  fillColor: hexToRgba(style.fillColor, style.fillOpacity ?? 1),
+  strokeWidth: style.strokeWeight,
+});
+
+const BOUNDARY_STYLE = buildPolygonStyleProps(DRAWING_STYLES.boundary);
+const PLOT_STYLE = buildPolygonStyleProps(DRAWING_STYLES.plot);
+const ROAD_STYLE = buildPolygonStyleProps(DRAWING_STYLES.road);
+
+const computePolygonCentroid = (paths) => {
+  if (!Array.isArray(paths) || paths.length === 0) {
+    return null;
+  }
+
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  let minLng = Number.POSITIVE_INFINITY;
+  let maxLng = Number.NEGATIVE_INFINITY;
+  let hasPoints = false;
+
+  paths.forEach((path) => {
+    if (!Array.isArray(path)) {
+      return;
+    }
+    path.forEach((point) => {
+      const lat = Number(point?.latitude);
+      const lng = Number(point?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+      hasPoints = true;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    });
+  });
+
+  if (!hasPoints) {
+    return null;
+  }
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+  };
+};
+
 export default function App() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -80,6 +144,8 @@ export default function App() {
   const [currentZoom, setCurrentZoom] = useState(null);
   const [showPolygons, setShowPolygons] = useState(false);
   const [markerViewsFrozen, setMarkerViewsFrozen] = useState(false);
+  const showPlotLabels =
+    typeof currentZoom === "number" && currentZoom >= PLOT_LABEL_ZOOM_THRESHOLD;
   const mobileBffUrl =
     process.env.EXPO_PUBLIC_MOBILE_BFF_URL ||
     Constants.expoConfig?.extra?.mobileBffUrl ||
@@ -338,13 +404,14 @@ export default function App() {
       }
       const isLayout = property.propertyType?.toLowerCase().includes("layout");
       property.polygonPaths.forEach((path, index) => {
+        const styleProps = isLayout ? BOUNDARY_STYLE : PLOT_STYLE;
         items.push(
           <Polygon
             key={`${property.id}-polygon-${index}`}
             coordinates={path}
-            strokeColor="rgb(22,101,52)"
-            fillColor={isLayout ? undefined : "rgba(34,197,94,0.70)"}
-            strokeWidth={2}
+            strokeColor={styleProps.strokeColor}
+            fillColor={styleProps.fillColor}
+            strokeWidth={styleProps.strokeWidth}
           />
         );
       });
@@ -382,15 +449,40 @@ export default function App() {
           <Polygon
             key={`${plot.id}-plot-${index}`}
             coordinates={path}
-            strokeColor="#064E3B"
-            fillColor="rgba(4, 120, 87,0.25)"
-            strokeWidth={2}
+            strokeColor={PLOT_STYLE.strokeColor}
+            fillColor={PLOT_STYLE.fillColor}
+            strokeWidth={PLOT_STYLE.strokeWidth}
           />
         );
       });
     });
     return items;
   }, [viewportPlots]);
+
+  const plotLabelMarkers = useMemo(() => {
+    if (!showPlotLabels) {
+      return null;
+    }
+    const items = [];
+    viewportPlots.forEach((plot) => {
+      const label = plot.plotNumber;
+      const labelCoordinate = plot.center;
+      if (!label || !labelCoordinate) {
+        return;
+      }
+      items.push(
+        <Marker
+          key={`${plot.id}-label`}
+          coordinate={labelCoordinate}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tappable={false}
+        >
+          <Text style={styles.plotLabelText}>{label}</Text>
+        </Marker>
+      );
+    });
+    return items;
+  }, [showPlotLabels, viewportPlots]);
 
   const roadPolylines = useMemo(() => {
     const items = [];
@@ -400,9 +492,9 @@ export default function App() {
           <Polygon
             key={`${road.id}-road-${index}`}
             coordinates={path}
-            strokeColor="#374151"
-            fillColor="rgba(17, 24, 39,0.30)"
-            strokeWidth={3}
+            strokeColor={ROAD_STYLE.strokeColor}
+            fillColor={ROAD_STYLE.fillColor}
+            strokeWidth={ROAD_STYLE.strokeWidth}
           />
         );
       });
@@ -452,6 +544,7 @@ export default function App() {
         customMapStyle={mapType === "standard" ? LIGHT_MAP_STYLE : undefined}
       >
         {plotPolygons}
+        {plotLabelMarkers}
         {propertyPolygons}
         {roadPolylines}
         {propertyMarkers}
@@ -659,6 +752,15 @@ const styles = StyleSheet.create({
   zoomBadgeText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  plotLabelText: {
+    color: "#f8fafc",
+    fontWeight: "700",
+    fontSize: 12,
+    textAlign: "center",
+    textShadowColor: "rgba(2, 6, 23, 0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   locationMarkerOuter: {
     width: 32,

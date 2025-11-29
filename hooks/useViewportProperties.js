@@ -300,16 +300,30 @@ function mapPlotFeatures(list) {
       if (!paths.length) {
         return null;
       }
+      const plotNumber = normalizePlotNumber(
+        feature?.plotNumber || feature?.PlotNumber
+      );
+      const center = extractCoordinate(
+        feature?.centerGeoJson || feature?.CenterGeoJson
+      );
       return {
         id:
           feature.plotId ||
           feature.featureId ||
           feature.layoutId ||
           Math.random().toString(36).slice(2),
+        plotNumber,
         polygonPaths: paths,
+        center,
       };
     })
     .filter(Boolean);
+}
+
+function normalizePlotNumber(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function mapRoadFeatures(list) {
