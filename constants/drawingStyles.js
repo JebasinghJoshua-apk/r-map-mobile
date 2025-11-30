@@ -7,7 +7,7 @@ export const DRAWING_STYLES = {
     strokeOpacity: 1,
   },
   plot: {
-    fillColor: "#4ADE80",
+    fillColor: "#16A34A",
     strokeColor: "#0f766e",
     strokeWeight: 2,
     fillOpacity: 0.2,

@@ -53,6 +53,7 @@ const AMENITY_LABEL_MAX_PX = 30;
 const AMENITY_LABEL_MAX_AREA_SQM = 15000;
 const DEG_TO_RAD = Math.PI / 180;
 const EARTH_RADIUS_M = 6378137;
+const PLOT_LABEL_EAST_OFFSET_METERS = 2; // nudges label markers ~1m to the right
 const ROAD_PATH_CLOSED_EPSILON = 0.00002;
 const LIGHT_MAP_STYLE = [
   {
@@ -343,6 +344,17 @@ const computeRegionForZoom = (center, zoomLevel) => {
     longitude: clampLongitude(center.longitude),
     latitudeDelta: latDelta,
     longitudeDelta: lngDelta,
+  };
+};
+
+const offsetCoordinate = (coordinate, metersEast = 0, metersNorth = 0) => {
+  if (!coordinate) return null;
+  const latRad = coordinate.latitude * DEG_TO_RAD;
+  const deltaLat = metersNorth / EARTH_RADIUS_M;
+  const deltaLng = metersEast / (EARTH_RADIUS_M * Math.cos(latRad || 0.00001));
+  return {
+    latitude: coordinate.latitude + (deltaLat * 180) / Math.PI,
+    longitude: coordinate.longitude + (deltaLng * 180) / Math.PI,
   };
 };
 
@@ -639,6 +651,13 @@ export default function App() {
     thawMarkersTemporarily();
   }, [showPolygons, viewportProperties, thawMarkersTemporarily]);
 
+  useEffect(() => {
+    if (!showPlotLabels) {
+      return;
+    }
+    thawMarkersTemporarily();
+  }, [showPlotLabels, viewportPlots, thawMarkersTemporarily]);
+
   const propertyPolygons = useMemo(() => {
     const items = [];
     const zoom = currentZoom ?? 0;
@@ -722,7 +741,11 @@ export default function App() {
     const items = [];
     viewportPlots.forEach((plot) => {
       const label = plot.plotNumber;
-      const labelCoordinate = plot.center;
+      const labelCoordinate = offsetCoordinate(
+        plot.center,
+        PLOT_LABEL_EAST_OFFSET_METERS,
+        0
+      );
       if (!label || !labelCoordinate) {
         return;
       }
@@ -731,14 +754,19 @@ export default function App() {
           key={`${plot.id}-label`}
           coordinate={labelCoordinate}
           anchor={{ x: 0.5, y: 0.5 }}
+          centerOffset={{ x: 4, y: 0 }}
+          flat
+          tracksViewChanges={!markerViewsFrozen}
           tappable={false}
         >
-          <Text style={styles.plotLabelText}>{label}</Text>
+          <Text style={styles.plotLabelText} numberOfLines={1}>
+            {label}
+          </Text>
         </Marker>
       );
     });
     return items;
-  }, [showPlotLabels, viewportPlots]);
+  }, [markerViewsFrozen, showPlotLabels, viewportPlots]);
 
   const roadPolylines = useMemo(() => {
     const items = [];
@@ -1120,6 +1148,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
     textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
     textShadowColor: "rgba(2, 6, 23, 0.65)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
