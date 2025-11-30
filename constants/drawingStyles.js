@@ -21,8 +21,8 @@ export const DRAWING_STYLES = {
     strokeOpacity: 0.95,
   },
   amenity: {
-    fillColor: "#9333ea",
-    strokeColor: "#7e22ce",
+    fillColor: "#65a30d",
+    strokeColor: "#0f766e",
     strokeWeight: 1,
     fillOpacity: 0.2,
     strokeOpacity: 0.95,

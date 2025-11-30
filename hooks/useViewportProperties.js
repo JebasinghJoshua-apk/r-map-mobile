@@ -16,6 +16,7 @@ export function useViewportProperties({
   const [properties, setProperties] = useState([]);
   const [plots, setPlots] = useState([]);
   const [roads, setRoads] = useState([]);
+  const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const normalizedBaseUrl = useMemo(() => {
@@ -105,6 +106,11 @@ export function useViewportProperties({
         setRoads((prev) =>
           hasFeatureDiff(prev, normalized.roads) ? normalized.roads : prev
         );
+        setAmenities((prev) =>
+          hasFeatureDiff(prev, normalized.amenities)
+            ? normalized.amenities
+            : prev
+        );
         setError(null);
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -173,6 +179,7 @@ export function useViewportProperties({
     properties,
     plots,
     roads,
+    amenities,
     loading,
     error,
     requestViewport,
@@ -189,6 +196,9 @@ function mapViewportPayload(payload) {
     missingCenterIds,
     plots: mapPlotFeatures(payload?.plots || payload?.Plots || []),
     roads: mapRoadFeatures(payload?.roads || payload?.Roads || []),
+    amenities: mapAmenityFeatures(
+      payload?.amenities || payload?.Amenities || []
+    ),
   };
 }
 
@@ -321,6 +331,9 @@ function mapPlotFeatures(list) {
 }
 
 function normalizePlotNumber(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : null;
+  }
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -338,6 +351,15 @@ function mapRoadFeatures(list) {
       if (!paths.length) {
         return null;
       }
+      const metadata = feature?.metadata || feature?.Metadata || null;
+      const roadName =
+        normalizeName(
+          feature?.name,
+          feature?.roadName,
+          feature?.RoadName,
+          metadata?.name,
+          metadata?.roadName
+        ) || null;
       return {
         id:
           feature.roadId ||
@@ -345,6 +367,43 @@ function mapRoadFeatures(list) {
           feature.name ||
           Math.random().toString(36).slice(2),
         paths,
+        name: roadName,
+        metadata,
+      };
+    })
+    .filter(Boolean);
+}
+
+function mapAmenityFeatures(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .map((feature) => {
+      const paths = extractPolygonPaths(
+        feature?.boundaryGeoJson || feature?.BoundaryGeoJson
+      );
+      if (!paths.length) {
+        return null;
+      }
+      const metadata = feature?.metadata || feature?.Metadata || null;
+      const friendlyName =
+        normalizeName(
+          feature?.name,
+          metadata?.name,
+          metadata?.type,
+          feature?.amenityType,
+          feature?.AmenityType
+        ) || "Amenity";
+      return {
+        id:
+          feature.amenityId ||
+          feature.featureId ||
+          feature.layoutId ||
+          Math.random().toString(36).slice(2),
+        name: friendlyName,
+        polygonPaths: paths,
+        metadata,
       };
     })
     .filter(Boolean);
@@ -519,6 +578,19 @@ function readLinePathsFromGeoJson(node) {
       )
       .filter(Boolean);
     return coords.length > 1 ? [coords] : null;
+  }
+  return null;
+}
+
+function normalizeName(...candidates) {
+  for (const value of candidates) {
+    if (typeof value !== "string") {
+      continue;
+    }
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
   }
   return null;
 }
