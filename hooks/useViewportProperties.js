@@ -57,6 +57,7 @@ export function useViewportProperties({
         maxLng: bounds.maxLng.toFixed(6),
         zoom: zoom.toFixed(2),
       });
+      const requestUrl = `${normalizedBaseUrl}/mobile/map/viewport?${query.toString()}`;
 
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -68,15 +69,12 @@ export function useViewportProperties({
       setError(null);
 
       try {
-        const response = await fetch(
-          `${normalizedBaseUrl}/mobile/map/viewport?${query.toString()}`,
-          {
-            headers: {
-              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-            },
-            signal: controller.signal,
-          }
-        );
+        const response = await fetch(requestUrl, {
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          signal: controller.signal,
+        });
 
         if (!response.ok) {
           const message = await response
@@ -116,7 +114,9 @@ export function useViewportProperties({
         if (err?.name === "AbortError") {
           return;
         }
-        console.warn("Viewport fetch failed", err);
+        console.warn(
+          `Viewport fetch failed for ${requestUrl}: ${err?.message ?? "Unknown error"}`
+        );
         setError(err?.message || "Unable to load properties for this view.");
       } finally {
         if (abortControllerRef.current === controller) {
