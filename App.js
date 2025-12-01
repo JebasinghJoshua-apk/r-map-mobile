@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import {
   ActivityIndicator,
@@ -11,259 +11,6 @@ import {
   useColorScheme,
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
-import { BlurView } from "expo-blur";
-import MapView, {
-  Marker,
-  Polygon,
-  Polyline,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
-import Constants from "expo-constants";
-import SearchOverlay from "./components/SearchOverlay";
-import CompactSearchBar from "./components/CompactSearchBar";
-import ProfileMenu from "./components/ProfileMenu";
-import AuthModal from "./components/AuthModal";
-import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
-import { useAuthState } from "./hooks/useAuthState";
-import { useViewportProperties } from "./hooks/useViewportProperties";
-import {
-  clampLatitude,
-  clampLongitude,
-  computeApproximateZoom,
-} from "./utils/mapRegion";
-import { DRAWING_STYLES } from "./constants/drawingStyles";
-import { getPlotLabelFontSize, getRoadLabelFontSize } from "./utils/labelFont";
-
-const INITIAL_REGION = {
-  latitude: 13.0827,
-  longitude: 80.2707,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
-};
-const HYBRID_ZOOM_THRESHOLD = 15.5;
-const PLOT_LABEL_ZOOM_THRESHOLD = 17;
-const LAYOUT_POLYGON_ZOOM_THRESHOLD = 10.9;
-const POLYGON_FOCUS_MIN_ZOOM = 11;
-const POLYGON_FOCUS_MAX_ZOOM = 15;
-const POLYGON_FOCUS_TARGET_ZOOM = 16.5;
-const AMENITY_POLYGON_ZOOM_THRESHOLD = 16;
-const AMENITY_LABEL_ZOOM_THRESHOLD = 16;
-const ROAD_LABEL_ZOOM_THRESHOLD = 16;
-const AMENITY_LABEL_MIN_PX = 12;
-const AMENITY_LABEL_MAX_PX = 30;
-const AMENITY_LABEL_MAX_AREA_SQM = 15000;
-const DEG_TO_RAD = Math.PI / 180;
-const EARTH_RADIUS_M = 6378137;
-const PLOT_LABEL_EAST_OFFSET_METERS = 2; // nudges label markers ~1m to the right
-const ROAD_PATH_CLOSED_EPSILON = 0.00002;
-const LIGHT_MAP_STYLE = [
-  {
-    elementType: "geometry",
-    stylers: [{ color: "#f5f5f5" }],
-  },
-  {
-    elementType: "labels.icon",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#616161" }],
-  },
-  {
-    elementType: "labels.text.stroke",
-    stylers: [{ color: "#f5f5f5" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "geometry",
-    stylers: [{ color: "#eeeeee" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#ffffff" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#c9e5ff" }],
-  },
-];
-
-const hexToRgba = (hex, alpha = 1) => {
-  if (typeof hex !== "string") return hex;
-  const normalized = hex.replace("#", "");
-  if (normalized.length !== 6) return hex;
-  const r = parseInt(normalized.slice(0, 2), 16);
-  const g = parseInt(normalized.slice(2, 4), 16);
-  const b = parseInt(normalized.slice(4, 6), 16);
-  if ([r, g, b].some((value) => Number.isNaN(value))) {
-    return hex;
-  }
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
-const buildPolygonStyleProps = (style) => ({
-  strokeColor: hexToRgba(style.strokeColor, style.strokeOpacity ?? 1),
-  fillColor: hexToRgba(style.fillColor, style.fillOpacity ?? 1),
-  strokeWidth: style.strokeWeight,
-});
-
-const BOUNDARY_STYLE = buildPolygonStyleProps(DRAWING_STYLES.boundary);
-const PLOT_STYLE = buildPolygonStyleProps(DRAWING_STYLES.plot);
-const ROAD_STYLE = buildPolygonStyleProps(DRAWING_STYLES.road);
-const AMENITY_STYLE = buildPolygonStyleProps(DRAWING_STYLES.amenity);
-
-const computePolygonCentroid = (paths) => {
-  if (!Array.isArray(paths) || paths.length === 0) {
-    return null;
-  }
-
-  let minLat = Number.POSITIVE_INFINITY;
-  let maxLat = Number.NEGATIVE_INFINITY;
-  let minLng = Number.POSITIVE_INFINITY;
-  let maxLng = Number.NEGATIVE_INFINITY;
-  let hasPoints = false;
-
-  paths.forEach((path) => {
-    if (!Array.isArray(path)) {
-      return;
-    }
-    path.forEach((point) => {
-      const lat = Number(point?.latitude);
-      const lng = Number(point?.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return;
-      }
-      hasPoints = true;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-    });
-  });
-
-  if (!hasPoints) {
-    return null;
-  }
-
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-  };
-};
-
-const computePolygonApproxAreaSqM = (paths) => {
-  if (!Array.isArray(paths) || !paths.length) {
-    return null;
-  }
-  let area = 0;
-  let hasRing = false;
-  paths.forEach((ring) => {
-    if (!Array.isArray(ring) || ring.length < 3) {
-      return;
-    }
-    const refLatRad = Number(ring[0]?.latitude ?? 0) * DEG_TO_RAD;
-    for (let i = 0; i < ring.length; i += 1) {
-      const current = ring[i];
-      const next = ring[(i + 1) % ring.length];
-      const lat1 = Number(current?.latitude);
-      const lng1 = Number(current?.longitude);
-      const lat2 = Number(next?.latitude);
-      const lng2 = Number(next?.longitude);
-      if (
-        !Number.isFinite(lat1) ||
-        !Number.isFinite(lng1) ||
-        !Number.isFinite(lat2) ||
-        !Number.isFinite(lng2)
-      ) {
-        continue;
-      }
-      hasRing = true;
-      const x1 = lng1 * DEG_TO_RAD * Math.cos(refLatRad) * EARTH_RADIUS_M;
-      const y1 = lat1 * DEG_TO_RAD * EARTH_RADIUS_M;
-      const x2 = lng2 * DEG_TO_RAD * Math.cos(refLatRad) * EARTH_RADIUS_M;
-      const y2 = lat2 * DEG_TO_RAD * EARTH_RADIUS_M;
-      area += x1 * y2 - x2 * y1;
-    }
-  });
-  return hasRing ? Math.abs(area) * 0.5 : null;
-};
-
-const computeAmenityLabelFontSize = (paths) => {
-  const area = computePolygonApproxAreaSqM(paths);
-  if (!Number.isFinite(area) || area <= 0) {
-    return AMENITY_LABEL_MIN_PX;
-  }
-  const normalized = Math.min(area / AMENITY_LABEL_MAX_AREA_SQM, 1);
-  const eased = Math.sqrt(normalized);
-  const size =
-    AMENITY_LABEL_MIN_PX +
-    (AMENITY_LABEL_MAX_PX - AMENITY_LABEL_MIN_PX) * eased;
-  return Math.round(size);
-};
-
-const computePolylineCentroid = (paths) => {
-  if (!Array.isArray(paths) || !paths.length) {
-    return null;
-  }
-  let latSum = 0;
-  let lngSum = 0;
-  let count = 0;
-  paths.forEach((path) => {
-    if (!Array.isArray(path)) {
-      return;
-    }
-    path.forEach((point) => {
-      const lat = Number(point?.latitude);
-      const lng = Number(point?.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return;
-      }
-      latSum += lat;
-      lngSum += lng;
-      count += 1;
-    });
-  });
-  if (!count) {
-    return null;
-  }
-  return {
-    latitude: latSum / count,
-    longitude: lngSum / count,
-  };
-};
-
-const computeRoadLabelPlacement = (paths) => {
-  if (!Array.isArray(paths) || !paths.length) {
-    return null;
-  }
-  let bestSegment = null;
-  paths.forEach((path) => {
-    if (!Array.isArray(path)) {
-      return;
-    }
-    for (let i = 0; i < path.length - 1; i += 1) {
-      const start = path[i];
-      const end = path[i + 1];
-      const startLat = Number(start?.latitude);
-      const startLng = Number(start?.longitude);
-      const endLat = Number(end?.latitude);
-      const endLng = Number(end?.longitude);
-      if (
-        !Number.isFinite(startLat) ||
-        !Number.isFinite(startLng) ||
-        !Number.isFinite(endLat) ||
-        !Number.isFinite(endLng)
-      ) {
-        continue;
-      }
-      const avgLatRad = ((startLat + endLat) / 2) * DEG_TO_RAD;
-      const dx = (endLng - startLng) * Math.cos(avgLatRad);
-      const dy = endLat - startLat;
-      const score = Math.hypot(dx, dy);
-      if (!bestSegment || score > bestSegment.score) {
-        bestSegment = {
           startLat,
           startLng,
           endLat,
@@ -348,26 +95,10 @@ const computeRegionForZoom = (center, zoomLevel) => {
   };
 };
 
-const offsetCoordinate = (coordinate, metersEast = 0, metersNorth = 0) => {
-  if (!coordinate) return null;
-  const latRad = coordinate.latitude * DEG_TO_RAD;
-  const deltaLat = metersNorth / EARTH_RADIUS_M;
-  const deltaLng = metersEast / (EARTH_RADIUS_M * Math.cos(latRad || 0.00001));
-  return {
-    latitude: coordinate.latitude + (deltaLat * 180) / Math.PI,
-    longitude: coordinate.longitude + (deltaLng * 180) / Math.PI,
-  };
-};
-
 export default function App() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const [searchQuery, setSearchQuery] = useState("");
   const [mapType, setMapType] = useState("standard");
-  const [overlayVisible, setOverlayVisible] = useState(true);
-  const [recentSearches, setRecentSearches] = useState([]);
-  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
-  const [authModalVisible, setAuthModalVisible] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(null);
   const [showPolygons, setShowPolygons] = useState(false);
   const [markerViewsFrozen, setMarkerViewsFrozen] = useState(false);
@@ -395,10 +126,30 @@ export default function App() {
     loginError,
     setLoginPhone,
     setLoginPassword,
-    login,
-    logout,
-    clearAuthError,
-  } = useAuthState({ baseUrl: mobileBffUrl });
+    handleProfilePress,
+    handleAuthSubmit,
+    handleLogout,
+    closeAuthModal,
+    profileMenuVisible,
+    setProfileMenuVisible,
+    authModalVisible,
+  } = useAuthUiState({ baseUrl: mobileBffUrl });
+  const dismissProfileMenu = useCallback(() => {
+    setProfileMenuVisible(false);
+  }, [setProfileMenuVisible]);
+  const {
+    searchQuery,
+    setSearchQuery,
+    overlayVisible,
+    showOverlay: showSearchOverlay,
+    hideOverlay: hideSearchOverlay,
+    recentSearches,
+    persistRecentSearch,
+    handleCompactClear,
+    handleClearRecent,
+  } = useSearchUiState({
+    onOverlayShown: dismissProfileMenu,
+  });
   const mapRef = useRef(null);
   const markerFreezeTimeoutRef = useRef(null);
   const thawMarkersTemporarily = useCallback(() => {
@@ -455,23 +206,6 @@ export default function App() {
   const compactTopOffset =
     Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) + 18 : 36;
 
-  const persistRecentSearch = (suggestion) => {
-    if (!suggestion?.place_id) return;
-    setRecentSearches((prev) => {
-      const filtered = prev.filter(
-        (item) => item.place_id !== suggestion.place_id
-      );
-      return [
-        {
-          place_id: suggestion.place_id,
-          description: suggestion.description,
-          structured_formatting: suggestion.structured_formatting,
-        },
-        ...filtered,
-      ].slice(0, 5);
-    });
-  };
-
   const handleSuggestionPress = async (suggestion) => {
     if (!mapsApiKey) return;
 
@@ -502,7 +236,7 @@ export default function App() {
         );
       }
       persistRecentSearch(suggestion);
-      setOverlayVisible(false);
+      hideSearchOverlay();
     } catch (error) {
       console.warn("Place details error", error);
     }
@@ -512,54 +246,14 @@ export default function App() {
     handleSuggestionPress(recentEntry);
   };
 
-  const handleClearRecent = () => setRecentSearches([]);
-
   const handleSubmitEditing = () => {
     if (suggestions.length > 0) {
       handleSuggestionPress(suggestions[0]);
     }
   };
 
-  const showSearchOverlay = () => {
-    setOverlayVisible(true);
-    setProfileMenuVisible(false);
-  };
-
-  const handleCompactClear = () => {
-    setSearchQuery("");
-    showSearchOverlay();
-  };
-
-  const handleProfilePress = () => {
-    if (userProfile) {
-      setProfileMenuVisible((prev) => !prev);
-    } else {
-      clearAuthError();
-      setAuthModalVisible(true);
-    }
-  };
-
-  const handleAuthSubmit = async () => {
-    const success = await login();
-    if (success) {
-      setAuthModalVisible(false);
-      setProfileMenuVisible(true);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    setProfileMenuVisible(false);
-  };
-
-  const closeAuthModal = () => {
-    setAuthModalVisible(false);
-    setLoginPassword("");
-    clearAuthError();
-  };
-
-  const handleMenuSelection = (action) => {
-    setProfileMenuVisible(false);
+  const handleMenuSelection = () => {
+    dismissProfileMenu();
   };
 
   const handlePropertyPolygonPress = useCallback(
@@ -608,9 +302,9 @@ export default function App() {
 
   useEffect(() => {
     if (overlayVisible) {
-      setProfileMenuVisible(false);
+      dismissProfileMenu();
     }
-  }, [overlayVisible]);
+  }, [dismissProfileMenu, overlayVisible]);
 
   const updateMapTypeForRegion = useCallback(
     (region) => {
@@ -659,243 +353,29 @@ export default function App() {
     thawMarkersTemporarily();
   }, [showPlotLabels, viewportPlots, thawMarkersTemporarily]);
 
-  const propertyPolygons = useMemo(() => {
-    const items = [];
-    const zoom = currentZoom ?? 0;
-    const normalizedZoom = Math.round(zoom * 10) / 10;
-    viewportProperties.forEach((property) => {
-      if (!property.polygonPaths?.length) {
-        return;
-      }
-      const isLayout = property.propertyType?.toLowerCase().includes("layout");
-      const shouldShowLayout =
-        isLayout && normalizedZoom >= LAYOUT_POLYGON_ZOOM_THRESHOLD;
-      if (!showPolygons && !shouldShowLayout) {
-        return;
-      }
-      property.polygonPaths.forEach((path, index) => {
-        const styleProps = isLayout ? BOUNDARY_STYLE : PLOT_STYLE;
-        items.push(
-          <Polygon
-            key={`${property.id}-polygon-${index}`}
-            coordinates={path}
-            strokeColor={styleProps.strokeColor}
-            fillColor={styleProps.fillColor}
-            strokeWidth={styleProps.strokeWidth}
-            onPress={() => handlePropertyPolygonPress(property.polygonPaths)}
-          />
-        );
-      });
-    });
-    return items.length ? items : null;
-  }, [
+  const {
+    propertyPolygons,
+    propertyMarkers,
+    plotPolygons,
+    plotLabelMarkers,
+    roadPolylines,
+    roadLabelMarkers,
+    amenityPolygons,
+    amenityLabelMarkers,
+  } = useMapOverlays({
     currentZoom,
-    handlePropertyPolygonPress,
     showPolygons,
+    showPlotLabels,
+    showAmenityPolygons,
+    showAmenityLabels,
+    showRoadLabels,
     viewportProperties,
-  ]);
-
-  const propertyMarkers = useMemo(() => {
-    if (showPolygons) {
-      return null;
-    }
-    return viewportProperties.map((property) => {
-      return (
-        <Marker
-          key={`${property.id}-marker`}
-          coordinate={property.coordinate}
-          title={property.name}
-          description={property.propertyType}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tracksViewChanges={!markerViewsFrozen}
-        >
-          <View style={styles.locationMarkerOuter}>
-            <View style={styles.locationMarkerInner} />
-          </View>
-        </Marker>
-      );
-    });
-  }, [markerViewsFrozen, showPolygons, viewportProperties]);
-
-  const plotPolygons = useMemo(() => {
-    const items = [];
-    viewportPlots.forEach((plot) => {
-      plot.polygonPaths?.forEach((path, index) => {
-        items.push(
-          <Polygon
-            key={`${plot.id}-plot-${index}`}
-            coordinates={path}
-            strokeColor={PLOT_STYLE.strokeColor}
-            fillColor={PLOT_STYLE.fillColor}
-            strokeWidth={PLOT_STYLE.strokeWidth}
-          />
-        );
-      });
-    });
-    return items;
-  }, [viewportPlots]);
-
-  const plotLabelMarkers = useMemo(() => {
-    if (!showPlotLabels) {
-      return null;
-    }
-    const zoom = currentZoom ?? 0;
-    const fontSize = getPlotLabelFontSize(zoom);
-    const items = [];
-    viewportPlots.forEach((plot) => {
-      const label = plot.plotNumber;
-      const labelCoordinate = offsetCoordinate(
-        plot.center,
-        PLOT_LABEL_EAST_OFFSET_METERS,
-        0
-      );
-      if (!label || !labelCoordinate) {
-        return;
-      }
-      items.push(
-        <Marker
-          key={`${plot.id}-label`}
-          coordinate={labelCoordinate}
-          anchor={{ x: 0.5, y: 0.5 }}
-          centerOffset={{ x: 4, y: 0 }}
-          flat
-          tracksViewChanges={!markerViewsFrozen}
-          tappable={false}
-        >
-          <Text style={[styles.plotLabelText, { fontSize }]} numberOfLines={1}>
-            {label}
-          </Text>
-        </Marker>
-      );
-    });
-    return items;
-  }, [currentZoom, markerViewsFrozen, showPlotLabels, viewportPlots]);
-
-  const roadPolylines = useMemo(() => {
-    const items = [];
-    viewportRoads.forEach((road) => {
-      road.paths?.forEach((path, index) => {
-        const key = `${road.id}-road-${index}`;
-        if (isClosedPath(path)) {
-          items.push(
-            <Polygon
-              key={key}
-              coordinates={path}
-              strokeColor={ROAD_STYLE.strokeColor}
-              fillColor={ROAD_STYLE.fillColor}
-              strokeWidth={ROAD_STYLE.strokeWidth}
-            />
-          );
-        } else {
-          items.push(
-            <Polyline
-              key={key}
-              coordinates={path}
-              strokeColor={ROAD_STYLE.strokeColor}
-              strokeWidth={ROAD_STYLE.strokeWidth}
-            />
-          );
-        }
-      });
-    });
-    return items.length ? items : null;
-  }, [viewportRoads]);
-
-  const roadLabelMarkers = useMemo(() => {
-    if (!showRoadLabels) {
-      return null;
-    }
-    const zoom = currentZoom ?? 0;
-    const fontSize = getRoadLabelFontSize(zoom);
-    const items = [];
-    viewportRoads.forEach((road) => {
-      const label = road.name?.trim();
-      if (!label || !road.paths?.length) {
-        return;
-      }
-      const placement = computeRoadLabelPlacement(road.paths);
-      if (!placement?.coordinate) {
-        return;
-      }
-      const rotationDeg = Number.isFinite(placement.angleDeg)
-        ? placement.angleDeg
-        : 0;
-      const rotationStyle = {
-        transform: [{ rotate: `${rotationDeg}deg` }],
-      };
-      items.push(
-        <Marker
-          key={`${road.id}-road-label`}
-          coordinate={placement.coordinate}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tappable={false}
-        >
-          <Text
-            style={[styles.roadLabelText, rotationStyle, { fontSize }]}
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-        </Marker>
-      );
-    });
-    return items.length ? items : null;
-  }, [currentZoom, showRoadLabels, viewportRoads]);
-
-  const amenityPolygons = useMemo(() => {
-    if (!showAmenityPolygons) {
-      return null;
-    }
-    const items = [];
-    viewportAmenities.forEach((amenity) => {
-      amenity.polygonPaths?.forEach((path, index) => {
-        items.push(
-          <Polygon
-            key={`${amenity.id}-amenity-${index}`}
-            coordinates={path}
-            strokeColor={AMENITY_STYLE.strokeColor}
-            fillColor={AMENITY_STYLE.fillColor}
-            strokeWidth={AMENITY_STYLE.strokeWidth}
-          />
-        );
-      });
-    });
-    return items.length ? items : null;
-  }, [showAmenityPolygons, viewportAmenities]);
-
-  const amenityLabelMarkers = useMemo(() => {
-    if (!showAmenityLabels) {
-      return null;
-    }
-    const items = [];
-    viewportAmenities.forEach((amenity) => {
-      const label = amenity.name?.trim();
-      if (!label) {
-        return;
-      }
-      const labelCoordinate = computePolygonCentroid(amenity.polygonPaths);
-      if (!labelCoordinate) {
-        return;
-      }
-      const fontSize = computeAmenityLabelFontSize(amenity.polygonPaths);
-      items.push(
-        <Marker
-          key={`${amenity.id}-amenity-label`}
-          coordinate={labelCoordinate}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tappable={false}
-        >
-          <Text
-            style={[styles.amenityLabelText, { fontSize }]}
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-        </Marker>
-      );
-    });
-    return items.length ? items : null;
-  }, [showAmenityLabels, viewportAmenities]);
+    viewportPlots,
+    viewportRoads,
+    viewportAmenities,
+    markerViewsFrozen,
+    onPropertyPolygonPress: handlePropertyPolygonPress,
+  });
 
   const renderMapStatus = () => {
     if (viewportLoading) {
@@ -1028,7 +508,7 @@ export default function App() {
         visible={profileMenuVisible && !!userProfile}
         topOffset={compactTopOffset + 60}
         userProfile={userProfile}
-        onDismiss={() => setProfileMenuVisible(false)}
+        onDismiss={dismissProfileMenu}
         onLogout={handleLogout}
         onNavigateProperties={() => handleMenuSelection("properties")}
       />
@@ -1150,51 +630,5 @@ const styles = StyleSheet.create({
   zoomBadgeText: {
     color: "#fff",
     fontWeight: "600",
-  },
-  plotLabelText: {
-    color: "#f8fafc",
-    fontWeight: "700",
-    fontSize: 12,
-    textAlign: "center",
-    textAlignVertical: "center",
-    includeFontPadding: false,
-    textShadowColor: "rgba(2, 6, 23, 0.65)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  amenityLabelText: {
-    color: "#6d28d9",
-    fontWeight: "700",
-    fontSize: 12,
-    textShadowColor: "rgba(241, 245, 249, 0.85)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-  roadLabelText: {
-    color: "#cdd2d9",
-    fontWeight: "600",
-    fontSize: 11,
-    maxWidth: 160,
-    textShadowColor: "rgba(15, 23, 42, 0.65)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 4,
-  },
-  locationMarkerOuter: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(94, 234, 212,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(15, 118, 110,0.25)",
-  },
-  locationMarkerInner: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#0d9488",
-    borderWidth: 2,
-    borderColor: "#e6fffa",
   },
 });
