@@ -4,6 +4,7 @@ import {
   computeBoundsFromRegion,
   createCoordinate,
 } from "../utils/mapRegion";
+import { computePolygonCentroid } from "../utils/mapGeometry";
 
 const DEFAULT_DEBOUNCE_MS = 450;
 const COORD_EPSILON = 0.00001;
@@ -266,7 +267,9 @@ function mapPropertyFeatures(list) {
   const missingCenterIds = [];
   const properties = list
     .map((feature) => {
-      const coordinate = extractCoordinate(
+      const propertyType = feature.propertyType || "Property";
+      const normalizedType = propertyType.toLowerCase();
+      let coordinate = extractCoordinate(
         feature?.centerGeoJson ||
           feature?.CenterGeoJson ||
           feature?.boundaryGeoJson ||
@@ -275,6 +278,16 @@ function mapPropertyFeatures(list) {
       const polygonPaths = extractPolygonPaths(
         feature?.boundaryGeoJson || feature?.BoundaryGeoJson
       );
+      if (
+        normalizedType.includes("plot") &&
+        Array.isArray(polygonPaths) &&
+        polygonPaths.length
+      ) {
+        const derived = computePolygonCentroid(polygonPaths);
+        if (derived) {
+          coordinate = derived;
+        }
+      }
       const id =
         feature.featureId ||
         feature.propertyId ||
@@ -287,7 +300,7 @@ function mapPropertyFeatures(list) {
       return {
         id,
         name: feature.name || "Untitled",
-        propertyType: feature.propertyType || "Property",
+        propertyType,
         isOwned: Boolean(feature.isOwnedByCurrentUser),
         coordinate,
         polygonPaths,

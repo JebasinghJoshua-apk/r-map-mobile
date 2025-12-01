@@ -21,6 +21,12 @@ const MOBILE_MARKER_COLORS = {
   innerStroke: "#e6fffa",
 };
 
+const PLOT_PRICE_BADGE_COLORS = {
+  background: "#075985",
+  stroke: "#bae6fd",
+  text: "#ecfeff",
+};
+
 const hexToRgba = (hex, alpha = 1) => {
   if (typeof hex !== "string") return hex;
   const normalized = hex.replace("#", "");
@@ -100,6 +106,41 @@ const overlayStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: MOBILE_MARKER_COLORS.innerStroke,
   },
+  plotPriceBadgeWrapper: {
+    alignItems: "center",
+  },
+  plotPriceBadgeBubble: {
+    backgroundColor: PLOT_PRICE_BADGE_COLORS.background,
+    borderColor: PLOT_PRICE_BADGE_COLORS.stroke,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    minWidth: 48,
+    maxWidth: 140,
+    shadowColor: "#020617",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  plotPriceBadgeText: {
+    color: PLOT_PRICE_BADGE_COLORS.text,
+    fontWeight: "700",
+    fontSize: 13,
+    textAlign: "center",
+  },
+  plotPriceBadgePointer: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: PLOT_PRICE_BADGE_COLORS.background,
+    marginTop: -1,
+  },
 });
 
 const useMapOverlays = ({
@@ -171,20 +212,54 @@ const useMapOverlays = ({
       backgroundColor: MOBILE_MARKER_COLORS.innerFill,
       borderColor: MOBILE_MARKER_COLORS.innerStroke,
     };
-    return viewportProperties.map((property) => (
-      <Marker
-        key={`${property.id}-marker`}
-        coordinate={property.coordinate}
-        title={property.name}
-        description={property.propertyType}
-        anchor={{ x: 0.5, y: 0.5 }}
-        tracksViewChanges={!markerViewsFrozen}
-      >
-        <View style={[overlayStyles.locationMarkerOuter, outerStyle]}>
-          <View style={[overlayStyles.locationMarkerInner, innerStyle]} />
-        </View>
-      </Marker>
-    ));
+    return viewportProperties.map((property) => {
+      if (!property?.coordinate) {
+        return null;
+      }
+      const type = property.propertyType?.toLowerCase() ?? "";
+      const isPlotProperty = type.includes("plot");
+      if (isPlotProperty) {
+        const label = property.name?.trim() || "Plot";
+        return (
+          <Marker
+            key={`${property.id}-marker`}
+            coordinate={property.coordinate}
+            title={property.name}
+            description={property.propertyType}
+            anchor={{ x: 0.5, y: 1 }}
+            centerOffset={{ x: 0, y: -4 }}
+            tracksViewChanges={!markerViewsFrozen}
+          >
+            <View style={overlayStyles.plotPriceBadgeWrapper}>
+              <View style={overlayStyles.plotPriceBadgeBubble}>
+                <Text
+                  style={overlayStyles.plotPriceBadgeText}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {label}
+                </Text>
+              </View>
+              <View style={overlayStyles.plotPriceBadgePointer} />
+            </View>
+          </Marker>
+        );
+      }
+      return (
+        <Marker
+          key={`${property.id}-marker`}
+          coordinate={property.coordinate}
+          title={property.name}
+          description={property.propertyType}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={!markerViewsFrozen}
+        >
+          <View style={[overlayStyles.locationMarkerOuter, outerStyle]}>
+            <View style={[overlayStyles.locationMarkerInner, innerStyle]} />
+          </View>
+        </Marker>
+      );
+    });
   }, [currentZoom, markerViewsFrozen, showPolygons, viewportProperties]);
 
   const plotPolygons = useMemo(() => {
