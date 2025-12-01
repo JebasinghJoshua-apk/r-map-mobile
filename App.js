@@ -32,6 +32,7 @@ import {
   computeApproximateZoom,
 } from "./utils/mapRegion";
 import { DRAWING_STYLES } from "./constants/drawingStyles";
+import { getPlotLabelFontSize, getRoadLabelFontSize } from "./utils/labelFont";
 
 const INITIAL_REGION = {
   latitude: 13.0827,
@@ -738,6 +739,8 @@ export default function App() {
     if (!showPlotLabels) {
       return null;
     }
+    const zoom = currentZoom ?? 0;
+    const fontSize = getPlotLabelFontSize(zoom);
     const items = [];
     viewportPlots.forEach((plot) => {
       const label = plot.plotNumber;
@@ -759,14 +762,14 @@ export default function App() {
           tracksViewChanges={!markerViewsFrozen}
           tappable={false}
         >
-          <Text style={styles.plotLabelText} numberOfLines={1}>
+          <Text style={[styles.plotLabelText, { fontSize }]} numberOfLines={1}>
             {label}
           </Text>
         </Marker>
       );
     });
     return items;
-  }, [markerViewsFrozen, showPlotLabels, viewportPlots]);
+  }, [currentZoom, markerViewsFrozen, showPlotLabels, viewportPlots]);
 
   const roadPolylines = useMemo(() => {
     const items = [];
@@ -802,6 +805,8 @@ export default function App() {
     if (!showRoadLabels) {
       return null;
     }
+    const zoom = currentZoom ?? 0;
+    const fontSize = getRoadLabelFontSize(zoom);
     const items = [];
     viewportRoads.forEach((road) => {
       const label = road.name?.trim();
@@ -825,14 +830,17 @@ export default function App() {
           anchor={{ x: 0.5, y: 0.5 }}
           tappable={false}
         >
-          <Text style={[styles.roadLabelText, rotationStyle]} numberOfLines={1}>
+          <Text
+            style={[styles.roadLabelText, rotationStyle, { fontSize }]}
+            numberOfLines={1}
+          >
             {label}
           </Text>
         </Marker>
       );
     });
     return items.length ? items : null;
-  }, [showRoadLabels, viewportRoads]);
+  }, [currentZoom, showRoadLabels, viewportRoads]);
 
   const amenityPolygons = useMemo(() => {
     if (!showAmenityPolygons) {
