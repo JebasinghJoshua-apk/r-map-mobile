@@ -232,7 +232,10 @@ const useMapOverlays = ({
           tracksViewChanges={!markerViewsFrozen}
           tappable={false}
         >
-          <Text style={[overlayStyles.plotLabelText, { fontSize }]} numberOfLines={1}>
+          <Text
+            style={[overlayStyles.plotLabelText, { fontSize }]}
+            numberOfLines={1}
+          >
             {label}
           </Text>
         </Marker>
@@ -355,7 +358,10 @@ const useMapOverlays = ({
           anchor={{ x: 0.5, y: 0.5 }}
           tappable={false}
         >
-          <Text style={[overlayStyles.amenityLabelText, { fontSize }]} numberOfLines={1}>
+          <Text
+            style={[overlayStyles.amenityLabelText, { fontSize }]}
+            numberOfLines={1}
+          >
             {label}
           </Text>
         </Marker>
