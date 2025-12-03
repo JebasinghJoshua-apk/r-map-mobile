@@ -149,23 +149,6 @@ const useMapOverlays = ({
     return items.length ? items : null;
   }, [currentZoom, onPropertyPolygonPress, showPolygons, viewportProperties]);
 
-  const propertyMarkers = useMemo(() => {
-    return viewportProperties.map((property) => {
-      if (!property?.coordinate) {
-        return null;
-      }
-      return (
-        <Marker
-          key={`${property.id}-marker`}
-          coordinate={property.coordinate}
-          title={property.name}
-          description={property.propertyType}
-          tracksViewChanges={!markerViewsFrozen}
-        />
-      );
-    });
-  }, [markerViewsFrozen, viewportProperties]);
-
   const plotPolygons = useMemo(() => {
     const items = [];
     viewportPlots.forEach((plot) => {
@@ -351,7 +334,6 @@ const useMapOverlays = ({
 
   return {
     propertyPolygons,
-    propertyMarkers,
     plotPolygons,
     plotLabelMarkers,
     roadPolylines,

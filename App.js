@@ -19,6 +19,7 @@ import AuthModal from "./components/AuthModal";
 import CompactSearchBar from "./components/CompactSearchBar";
 import ProfileMenu from "./components/ProfileMenu";
 import SearchOverlay from "./components/SearchOverlay";
+import PropertyPriceBadges from "./components/PropertyPriceBadges";
 import useAuthUiState from "./hooks/useAuthUiState";
 import useSearchUiState from "./hooks/useSearchUiState";
 import useMapOverlays from "./hooks/useMapOverlays";
@@ -46,6 +47,14 @@ const ROAD_LABEL_ZOOM_THRESHOLD = 15.4;
 const POLYGON_FOCUS_MIN_ZOOM = 14;
 const POLYGON_FOCUS_MAX_ZOOM = 19;
 const POLYGON_FOCUS_TARGET_ZOOM = 18;
+const PROPERTY_BADGE_FALLBACK_LABEL = "Property";
+
+const getPropertyBadgeLabel = (property) =>
+  property?.priceDisplay ??
+  property?.displayPrice ??
+  property?.displayLabel ??
+  property?.name ??
+  PROPERTY_BADGE_FALLBACK_LABEL;
 
 const LIGHT_MAP_STYLE = [
   {
@@ -118,6 +127,7 @@ export default function App() {
   const [currentZoom, setCurrentZoom] = useState(null);
   const [showPolygons, setShowPolygons] = useState(false);
   const [markerViewsFrozen, setMarkerViewsFrozen] = useState(false);
+  const [propertyBadges, setPropertyBadges] = useState([]);
   const showPlotLabels =
     typeof currentZoom === "number" && currentZoom >= PLOT_LABEL_ZOOM_THRESHOLD;
   const showAmenityPolygons =
@@ -167,6 +177,7 @@ export default function App() {
     onOverlayShown: dismissProfileMenu,
   });
   const mapRef = useRef(null);
+  const badgeAnimationFrameRef = useRef(null);
   const markerFreezeTimeoutRef = useRef(null);
   const thawMarkersTemporarily = useCallback(() => {
     if (markerFreezeTimeoutRef.current) {
@@ -272,6 +283,55 @@ export default function App() {
     dismissProfileMenu();
   };
 
+  const updatePropertyBadges = useCallback(async () => {
+    if (!mapRef.current) {
+      setPropertyBadges([]);
+      return;
+    }
+    if (!viewportProperties.length) {
+      setPropertyBadges([]);
+      return;
+    }
+    try {
+      const projections = await Promise.all(
+        viewportProperties.map(async (property) => {
+          if (!property?.coordinate) {
+            return null;
+          }
+          try {
+            const point = await mapRef.current.pointForCoordinate(
+              property.coordinate
+            );
+            if (!point) {
+              return null;
+            }
+            return {
+              id: property.id,
+              x: point.x,
+              y: point.y,
+              label: getPropertyBadgeLabel(property),
+            };
+          } catch (projectionError) {
+            return null;
+          }
+        })
+      );
+      setPropertyBadges(projections.filter(Boolean));
+    } catch (error) {
+      console.warn("Failed to project price badges", error);
+    }
+  }, [viewportProperties]);
+
+  const scheduleBadgeUpdate = useCallback(() => {
+    if (badgeAnimationFrameRef.current) {
+      return;
+    }
+    badgeAnimationFrameRef.current = requestAnimationFrame(() => {
+      badgeAnimationFrameRef.current = null;
+      updatePropertyBadges();
+    });
+  }, [updatePropertyBadges]);
+
   const handlePropertyPolygonPress = useCallback(
     (polygonPaths) => {
       const zoom = currentZoom ?? 0;
@@ -322,6 +382,20 @@ export default function App() {
     }
   }, [dismissProfileMenu, overlayVisible]);
 
+  useEffect(() => {
+    updatePropertyBadges();
+  }, [updatePropertyBadges]);
+
+  useEffect(
+    () => () => {
+      if (badgeAnimationFrameRef.current) {
+        cancelAnimationFrame(badgeAnimationFrameRef.current);
+        badgeAnimationFrameRef.current = null;
+      }
+    },
+    []
+  );
+
   const updateMapTypeForRegion = useCallback(
     (region) => {
       if (!region) return;
@@ -342,12 +416,17 @@ export default function App() {
     [freezeMarkersImmediately, thawMarkersTemporarily]
   );
 
+  const handleRegionChange = useCallback(() => {
+    scheduleBadgeUpdate();
+  }, [scheduleBadgeUpdate]);
+
   const handleRegionChangeComplete = useCallback(
     (region) => {
       updateMapTypeForRegion(region);
       requestViewport(region);
+      updatePropertyBadges();
     },
-    [requestViewport, updateMapTypeForRegion]
+    [requestViewport, updateMapTypeForRegion, updatePropertyBadges]
   );
 
   useEffect(() => {
@@ -371,7 +450,6 @@ export default function App() {
 
   const {
     propertyPolygons,
-    propertyMarkers,
     plotPolygons,
     plotLabelMarkers,
     roadPolylines,
@@ -431,6 +509,8 @@ export default function App() {
         ref={mapRef}
         initialRegion={INITIAL_REGION}
         onRegionChangeComplete={handleRegionChangeComplete}
+        onRegionChange={handleRegionChange}
+        onMapReady={updatePropertyBadges}
         mapType={mapType}
         customMapStyle={mapType === "standard" ? LIGHT_MAP_STYLE : undefined}
         pitchEnabled={false}
@@ -443,8 +523,8 @@ export default function App() {
         {propertyPolygons}
         {roadPolylines}
         {roadLabelMarkers}
-        {propertyMarkers}
       </MapView>
+      <PropertyPriceBadges badges={propertyBadges} />
       {overlayVisible && (
         <View
           pointerEvents="none"
