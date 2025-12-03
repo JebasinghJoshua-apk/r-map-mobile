@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { Marker, Polygon, Polyline } from "react-native-maps";
 import { DRAWING_STYLES } from "../constants/drawingStyles";
 import { getPlotLabelFontSize, getRoadLabelFontSize } from "../utils/labelFont";
@@ -13,19 +13,6 @@ import {
 
 const LAYOUT_POLYGON_ZOOM_THRESHOLD = 10.9;
 const PLOT_LABEL_EAST_OFFSET_METERS = 2;
-
-const MOBILE_MARKER_COLORS = {
-  outerFill: "rgba(94, 234, 212, 0.35)",
-  outerStroke: "rgba(15, 118, 110, 0.35)",
-  innerFill: "#064E3B",
-  innerStroke: "#e6fffa",
-};
-
-const PLOT_PRICE_BADGE_COLORS = {
-  background: "#075985",
-  stroke: "#bae6fd",
-  text: "#ecfeff",
-};
 
 const hexToRgba = (hex, alpha = 1) => {
   if (typeof hex !== "string") return hex;
@@ -50,14 +37,6 @@ const BOUNDARY_STYLE = buildPolygonStyleProps(DRAWING_STYLES.boundary);
 const PLOT_STYLE = buildPolygonStyleProps(DRAWING_STYLES.plot);
 const ROAD_STYLE = buildPolygonStyleProps(DRAWING_STYLES.road);
 const AMENITY_STYLE = buildPolygonStyleProps(DRAWING_STYLES.amenity);
-
-const computeMarkerSizeForZoom = (zoom) => {
-  if (zoom >= 18.5) return 34;
-  if (zoom >= 17.2) return 32;
-  if (zoom >= 16.5) return 30;
-  if (zoom >= 15.5) return 28;
-  return 26;
-};
 
 const overlayStyles = StyleSheet.create({
   plotLabelText: {
@@ -87,59 +66,6 @@ const overlayStyles = StyleSheet.create({
     textShadowColor: "rgba(15, 23, 42, 0.65)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
-  },
-  locationMarkerOuter: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: MOBILE_MARKER_COLORS.outerFill,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: MOBILE_MARKER_COLORS.outerStroke,
-  },
-  locationMarkerInner: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: MOBILE_MARKER_COLORS.innerFill,
-    borderWidth: 2,
-    borderColor: MOBILE_MARKER_COLORS.innerStroke,
-  },
-  plotPriceBadgeWrapper: {
-    alignItems: "center",
-  },
-  plotPriceBadgeBubble: {
-    backgroundColor: PLOT_PRICE_BADGE_COLORS.background,
-    borderColor: PLOT_PRICE_BADGE_COLORS.stroke,
-    borderWidth: 1.5,
-    borderRadius: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    minWidth: 48,
-    maxWidth: 140,
-    shadowColor: "#020617",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  plotPriceBadgeText: {
-    color: PLOT_PRICE_BADGE_COLORS.text,
-    fontWeight: "700",
-    fontSize: 13,
-    textAlign: "center",
-  },
-  plotPriceBadgePointer: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 10,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: PLOT_PRICE_BADGE_COLORS.background,
-    marginTop: -1,
   },
 });
 
@@ -224,58 +150,9 @@ const useMapOverlays = ({
   }, [currentZoom, onPropertyPolygonPress, showPolygons, viewportProperties]);
 
   const propertyMarkers = useMemo(() => {
-    if (showPolygons) {
-      return null;
-    }
-    const zoom = currentZoom ?? 0;
-    const size = computeMarkerSizeForZoom(zoom);
-    const innerSize = Math.max(8, Math.round(size * 0.55));
-    const outerStyle = {
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-      backgroundColor: MOBILE_MARKER_COLORS.outerFill,
-      borderColor: MOBILE_MARKER_COLORS.outerStroke,
-    };
-    const innerStyle = {
-      width: innerSize,
-      height: innerSize,
-      borderRadius: innerSize / 2,
-      backgroundColor: MOBILE_MARKER_COLORS.innerFill,
-      borderColor: MOBILE_MARKER_COLORS.innerStroke,
-    };
     return viewportProperties.map((property) => {
       if (!property?.coordinate) {
         return null;
-      }
-      const type = property.propertyType?.toLowerCase() ?? "";
-      const isPlotProperty = type.includes("plot");
-      if (isPlotProperty) {
-        const label = property.name?.trim() || "Plot";
-        return (
-          <Marker
-            key={`${property.id}-marker`}
-            coordinate={property.coordinate}
-            title={property.name}
-            description={property.propertyType}
-            anchor={{ x: 0.5, y: 1 }}
-            centerOffset={{ x: 0, y: -4 }}
-            tracksViewChanges={!markerViewsFrozen}
-          >
-            <View style={overlayStyles.plotPriceBadgeWrapper}>
-              <View style={overlayStyles.plotPriceBadgeBubble}>
-                <Text
-                  style={overlayStyles.plotPriceBadgeText}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {label}
-                </Text>
-              </View>
-              <View style={overlayStyles.plotPriceBadgePointer} />
-            </View>
-          </Marker>
-        );
       }
       return (
         <Marker
@@ -283,16 +160,11 @@ const useMapOverlays = ({
           coordinate={property.coordinate}
           title={property.name}
           description={property.propertyType}
-          anchor={{ x: 0.5, y: 0.5 }}
           tracksViewChanges={!markerViewsFrozen}
-        >
-          <View style={[overlayStyles.locationMarkerOuter, outerStyle]}>
-            <View style={[overlayStyles.locationMarkerInner, innerStyle]} />
-          </View>
-        </Marker>
+        />
       );
     });
-  }, [currentZoom, markerViewsFrozen, showPolygons, viewportProperties]);
+  }, [markerViewsFrozen, viewportProperties]);
 
   const plotPolygons = useMemo(() => {
     const items = [];

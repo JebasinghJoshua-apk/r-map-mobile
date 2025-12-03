@@ -433,6 +433,8 @@ export default function App() {
         onRegionChangeComplete={handleRegionChangeComplete}
         mapType={mapType}
         customMapStyle={mapType === "standard" ? LIGHT_MAP_STYLE : undefined}
+        pitchEnabled={false}
+        rotateEnabled={false}
       >
         {plotPolygons}
         {amenityPolygons}
