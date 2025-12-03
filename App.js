@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import {
-  ActivityIndicator,
-  Dimensions,
   Platform,
   StatusBar as RNStatusBar,
   StyleSheet,
@@ -10,115 +8,38 @@ import {
   View,
   useColorScheme,
 } from "react-native";
-import * as NavigationBar from "expo-navigation-bar";
 import Constants from "expo-constants";
 import { BlurView } from "expo-blur";
 import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 
 import AuthModal from "./components/AuthModal";
 import CompactSearchBar from "./components/CompactSearchBar";
+import MapStatusIndicator from "./components/MapStatusIndicator";
 import ProfileMenu from "./components/ProfileMenu";
 import SearchOverlay from "./components/SearchOverlay";
 import PropertyPriceBadges from "./components/PropertyPriceBadges";
 import useAuthUiState from "./hooks/useAuthUiState";
 import useSearchUiState from "./hooks/useSearchUiState";
 import useMapOverlays from "./hooks/useMapOverlays";
+import useNavigationBarTheme from "./hooks/useNavigationBarTheme";
+import usePropertyBadges from "./hooks/usePropertyBadges";
 import { useViewportProperties } from "./hooks/useViewportProperties";
 import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
 import { computePolygonCentroid } from "./utils/mapGeometry";
+import { computeApproximateZoom } from "./utils/mapRegion";
 import {
-  clampLatitude,
-  clampLongitude,
-  computeApproximateZoom,
-} from "./utils/mapRegion";
-
-const INITIAL_REGION = {
-  latitude: 13.0827,
-  longitude: 80.2707,
-  latitudeDelta: 0.08,
-  longitudeDelta: 0.08,
-};
-
-const HYBRID_ZOOM_THRESHOLD = 16.5;
-const PLOT_LABEL_ZOOM_THRESHOLD = 17.2;
-const AMENITY_POLYGON_ZOOM_THRESHOLD = 15;
-const AMENITY_LABEL_ZOOM_THRESHOLD = 16.4;
-const ROAD_LABEL_ZOOM_THRESHOLD = 15.4;
-const POLYGON_FOCUS_MIN_ZOOM = 14;
-const POLYGON_FOCUS_MAX_ZOOM = 19;
-const POLYGON_FOCUS_TARGET_ZOOM = 18;
-const PROPERTY_BADGE_FALLBACK_LABEL = "Property";
-
-const getPropertyBadgeLabel = (property) =>
-  property?.priceDisplay ??
-  property?.displayPrice ??
-  property?.displayLabel ??
-  property?.name ??
-  PROPERTY_BADGE_FALLBACK_LABEL;
-
-const LIGHT_MAP_STYLE = [
-  {
-    elementType: "geometry",
-    stylers: [{ color: "#f5f5f5" }],
-  },
-  {
-    elementType: "labels.icon",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#616161" }],
-  },
-  {
-    elementType: "labels.text.stroke",
-    stylers: [{ color: "#f5f5f5" }],
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#ffffff" }],
-  },
-  {
-    featureType: "road.arterial",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#757575" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#dadada" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#616161" }],
-  },
-  {
-    featureType: "transit",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#c9e6ff" }],
-  },
-];
-
-const computeRegionForZoom = (center, zoomLevel) => {
-  if (!center || typeof zoomLevel !== "number") {
-    return null;
-  }
-  const latDelta = Math.max(360 / 2 ** zoomLevel, 0.0005);
-  const { width, height } = Dimensions.get("window");
-  const aspectRatio = height > 0 ? width / height : 1;
-  const lngDelta = Math.max(latDelta * aspectRatio, 0.0005);
-  return {
-    latitude: clampLatitude(center.latitude),
-    longitude: clampLongitude(center.longitude),
-    latitudeDelta: latDelta,
-    longitudeDelta: lngDelta,
-  };
-};
+  AMENITY_LABEL_ZOOM_THRESHOLD,
+  AMENITY_POLYGON_ZOOM_THRESHOLD,
+  HYBRID_ZOOM_THRESHOLD,
+  INITIAL_REGION,
+  LIGHT_MAP_STYLE,
+  POLYGON_FOCUS_MAX_ZOOM,
+  POLYGON_FOCUS_MIN_ZOOM,
+  POLYGON_FOCUS_TARGET_ZOOM,
+  PLOT_LABEL_ZOOM_THRESHOLD,
+  ROAD_LABEL_ZOOM_THRESHOLD,
+  computeRegionForZoom,
+} from "./constants/mapConfig";
 
 export default function App() {
   const colorScheme = useColorScheme();
@@ -127,7 +48,6 @@ export default function App() {
   const [currentZoom, setCurrentZoom] = useState(null);
   const [showPolygons, setShowPolygons] = useState(false);
   const [markerViewsFrozen, setMarkerViewsFrozen] = useState(false);
-  const [propertyBadges, setPropertyBadges] = useState([]);
   const showPlotLabels =
     typeof currentZoom === "number" && currentZoom >= PLOT_LABEL_ZOOM_THRESHOLD;
   const showAmenityPolygons =
@@ -177,7 +97,6 @@ export default function App() {
     onOverlayShown: dismissProfileMenu,
   });
   const mapRef = useRef(null);
-  const badgeAnimationFrameRef = useRef(null);
   const markerFreezeTimeoutRef = useRef(null);
   const thawMarkersTemporarily = useCallback(() => {
     if (markerFreezeTimeoutRef.current) {
@@ -215,6 +134,8 @@ export default function App() {
     error: viewportError,
     requestViewport,
   } = useViewportProperties({ baseUrl: mobileBffUrl, authToken });
+  const { propertyBadges, scheduleBadgeUpdate, updatePropertyBadges } =
+    usePropertyBadges(mapRef, viewportProperties);
   const mapsApiKey =
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     Constants.expoConfig?.extra?.googleMapsApiKey ||
@@ -283,55 +204,6 @@ export default function App() {
     dismissProfileMenu();
   };
 
-  const updatePropertyBadges = useCallback(async () => {
-    if (!mapRef.current) {
-      setPropertyBadges([]);
-      return;
-    }
-    if (!viewportProperties.length) {
-      setPropertyBadges([]);
-      return;
-    }
-    try {
-      const projections = await Promise.all(
-        viewportProperties.map(async (property) => {
-          if (!property?.coordinate) {
-            return null;
-          }
-          try {
-            const point = await mapRef.current.pointForCoordinate(
-              property.coordinate
-            );
-            if (!point) {
-              return null;
-            }
-            return {
-              id: property.id,
-              x: point.x,
-              y: point.y,
-              label: getPropertyBadgeLabel(property),
-            };
-          } catch (projectionError) {
-            return null;
-          }
-        })
-      );
-      setPropertyBadges(projections.filter(Boolean));
-    } catch (error) {
-      console.warn("Failed to project price badges", error);
-    }
-  }, [viewportProperties]);
-
-  const scheduleBadgeUpdate = useCallback(() => {
-    if (badgeAnimationFrameRef.current) {
-      return;
-    }
-    badgeAnimationFrameRef.current = requestAnimationFrame(() => {
-      badgeAnimationFrameRef.current = null;
-      updatePropertyBadges();
-    });
-  }, [updatePropertyBadges]);
-
   const handlePropertyPolygonPress = useCallback(
     (polygonPaths) => {
       const zoom = currentZoom ?? 0;
@@ -355,46 +227,13 @@ export default function App() {
     [currentZoom]
   );
 
-  useEffect(() => {
-    const applyNavigationBarTheme = async () => {
-      const available = await NavigationBar.isAvailableAsync();
-      if (!available) return;
-
-      const behavior = await NavigationBar.getBehaviorAsync().catch(() => null);
-      if (behavior === "inset-swipe" || behavior === "overlay-swipe") {
-        return; // edge-to-edge gesture nav, OS ignores background changes
-      }
-
-      await NavigationBar.setBackgroundColorAsync(
-        isDark ? "#1b1b1b" : "#f1f1f1"
-      ).catch(() => {});
-      await NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark").catch(
-        () => {}
-      );
-    };
-
-    applyNavigationBarTheme();
-  }, [colorScheme, isDark]);
+  useNavigationBarTheme({ isDark, colorScheme });
 
   useEffect(() => {
     if (overlayVisible) {
       dismissProfileMenu();
     }
   }, [dismissProfileMenu, overlayVisible]);
-
-  useEffect(() => {
-    updatePropertyBadges();
-  }, [updatePropertyBadges]);
-
-  useEffect(
-    () => () => {
-      if (badgeAnimationFrameRef.current) {
-        cancelAnimationFrame(badgeAnimationFrameRef.current);
-        badgeAnimationFrameRef.current = null;
-      }
-    },
-    []
-  );
 
   const updateMapTypeForRegion = useCallback(
     (region) => {
@@ -470,36 +309,6 @@ export default function App() {
     markerViewsFrozen,
     onPropertyPolygonPress: handlePropertyPolygonPress,
   });
-
-  const renderMapStatus = () => {
-    if (viewportLoading) {
-      return (
-        <View style={[styles.mapStatusPill, styles.mapStatusLoading]}>
-          <ActivityIndicator size="small" color="#fff" />
-          <Text style={styles.mapStatusText}>Updating map…</Text>
-        </View>
-      );
-    }
-    if (viewportError) {
-      return (
-        <View style={[styles.mapStatusPill, styles.mapStatusError]}>
-          <Text style={styles.mapStatusText} numberOfLines={2}>
-            {viewportError}
-          </Text>
-        </View>
-      );
-    }
-    if (viewportProperties.length > 0) {
-      return (
-        <View style={[styles.mapStatusPill, styles.mapStatusInfo]}>
-          <Text style={styles.mapStatusText}>
-            {viewportProperties.length} properties in view
-          </Text>
-        </View>
-      );
-    }
-    return null;
-  };
 
   return (
     <View style={styles.container}>
@@ -627,7 +436,11 @@ export default function App() {
         pointerEvents="none"
         style={[styles.mapStatusContainer, { top: compactTopOffset + 8 }]}
       >
-        {renderMapStatus()}
+        <MapStatusIndicator
+          loading={viewportLoading}
+          error={viewportError}
+          propertyCount={viewportProperties.length}
+        />
       </View>
       {currentZoom && (
         <View style={styles.zoomBadgeContainer} pointerEvents="none">
@@ -682,34 +495,6 @@ const styles = StyleSheet.create({
   mapStatusContainer: {
     position: "absolute",
     alignSelf: "center",
-  },
-  mapStatusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(15,23,42,0.9)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    maxWidth: 320,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  mapStatusLoading: {
-    backgroundColor: "rgba(15, 118, 110, 0.95)",
-  },
-  mapStatusError: {
-    backgroundColor: "rgba(239, 68, 68, 0.95)",
-  },
-  mapStatusInfo: {
-    backgroundColor: "rgba(15, 23, 42, 0.9)",
-  },
-  mapStatusText: {
-    color: "#fff",
-    fontWeight: "600",
   },
   zoomBadgeContainer: {
     position: "absolute",
