@@ -11,73 +11,89 @@ import {
   useColorScheme,
 } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
-          startLat,
-          startLng,
-          endLat,
-          endLng,
-          score,
-        };
-      }
-    }
-  });
+import Constants from "expo-constants";
+import { BlurView } from "expo-blur";
+import MapView, { PROVIDER_GOOGLE } from "react-native-maps";
 
-  if (!bestSegment) {
-    const fallback = computePolylineCentroid(paths);
-    if (!fallback) {
-      return null;
-    }
-    return { coordinate: fallback, angleDeg: 0 };
-  }
+import AuthModal from "./components/AuthModal";
+import CompactSearchBar from "./components/CompactSearchBar";
+import ProfileMenu from "./components/ProfileMenu";
+import SearchOverlay from "./components/SearchOverlay";
+import useAuthUiState from "./hooks/useAuthUiState";
+import useSearchUiState from "./hooks/useSearchUiState";
+import useMapOverlays from "./hooks/useMapOverlays";
+import { useViewportProperties } from "./hooks/useViewportProperties";
+import { usePlacesAutocomplete } from "./hooks/usePlacesAutocomplete";
+import { computePolygonCentroid } from "./utils/mapGeometry";
+import {
+  clampLatitude,
+  clampLongitude,
+  computeApproximateZoom,
+} from "./utils/mapRegion";
 
-  const centroid = computePolylineCentroid(paths) || {
-    latitude: (bestSegment.startLat + bestSegment.endLat) / 2,
-    longitude: (bestSegment.startLng + bestSegment.endLng) / 2,
-  };
-  const avgLatRad =
-    ((bestSegment.startLat + bestSegment.endLat) / 2) * DEG_TO_RAD;
-  let angleDeg =
-    (Math.atan2(
-      bestSegment.endLat - bestSegment.startLat,
-      (bestSegment.endLng - bestSegment.startLng) * Math.cos(avgLatRad)
-    ) *
-      180) /
-    Math.PI;
-  if (angleDeg > 90) {
-    angleDeg -= 180;
-  }
-  if (angleDeg < -90) {
-    angleDeg += 180;
-  }
-
-  return {
-    coordinate: centroid,
-    angleDeg,
-  };
+const INITIAL_REGION = {
+  latitude: 13.0827,
+  longitude: 80.2707,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
 };
 
-const isClosedPath = (path) => {
-  if (!Array.isArray(path) || path.length < 3) {
-    return false;
-  }
-  const first = path[0];
-  const last = path[path.length - 1];
-  const firstLat = Number(first?.latitude);
-  const firstLng = Number(first?.longitude);
-  const lastLat = Number(last?.latitude);
-  const lastLng = Number(last?.longitude);
-  if (
-    !Number.isFinite(firstLat) ||
-    !Number.isFinite(firstLng) ||
-    !Number.isFinite(lastLat) ||
-    !Number.isFinite(lastLng)
-  ) {
-    return false;
-  }
-  return (
-    Math.abs(firstLat - lastLat) <= ROAD_PATH_CLOSED_EPSILON &&
-    Math.abs(firstLng - lastLng) <= ROAD_PATH_CLOSED_EPSILON
-  );
-};
+const HYBRID_ZOOM_THRESHOLD = 16.5;
+const PLOT_LABEL_ZOOM_THRESHOLD = 17.2;
+const AMENITY_POLYGON_ZOOM_THRESHOLD = 15;
+const AMENITY_LABEL_ZOOM_THRESHOLD = 16.4;
+const ROAD_LABEL_ZOOM_THRESHOLD = 15.4;
+const POLYGON_FOCUS_MIN_ZOOM = 14;
+const POLYGON_FOCUS_MAX_ZOOM = 19;
+const POLYGON_FOCUS_TARGET_ZOOM = 18;
+
+const LIGHT_MAP_STYLE = [
+  {
+    elementType: "geometry",
+    stylers: [{ color: "#f5f5f5" }],
+  },
+  {
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#616161" }],
+  },
+  {
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#f5f5f5" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#ffffff" }],
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#757575" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#dadada" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#616161" }],
+  },
+  {
+    featureType: "transit",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#c9e6ff" }],
+  },
+];
 
 const computeRegionForZoom = (center, zoomLevel) => {
   if (!center || typeof zoomLevel !== "number") {
