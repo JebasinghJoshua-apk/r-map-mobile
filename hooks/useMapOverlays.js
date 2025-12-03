@@ -143,6 +143,36 @@ const overlayStyles = StyleSheet.create({
   },
 });
 
+const shouldAlwaysShowPolygon = (normalizedType) => {
+  if (!normalizedType) {
+    return false;
+  }
+  const type = normalizedType.toLowerCase();
+  const collapsed = type.replace(/[^a-z]/g, "");
+
+  const matchesIndependentHouse =
+    collapsed.includes("independenthouse") ||
+    collapsed.includes("individualhouse");
+  const matchesIndividualPlots =
+    collapsed.includes("individualplots") ||
+    collapsed.includes("individualplot");
+  const matchesLand = collapsed.includes("land");
+  const matchesApartmentFlat =
+    collapsed.includes("apartmentflat") ||
+    (type.includes("apartment") && type.includes("flat"));
+  const matchesCommercialSpace =
+    collapsed.includes("commercialspace") ||
+    (type.includes("commercial") && type.includes("space"));
+
+  return (
+    matchesIndependentHouse ||
+    matchesIndividualPlots ||
+    matchesLand ||
+    matchesApartmentFlat ||
+    matchesCommercialSpace
+  );
+};
+
 const useMapOverlays = ({
   currentZoom,
   showPolygons,
@@ -169,7 +199,9 @@ const useMapOverlays = ({
       const isLayout = propertyType.includes("layout");
       const shouldShowLayout =
         isLayout && normalizedZoom >= LAYOUT_POLYGON_ZOOM_THRESHOLD;
-      if (!showPolygons && !shouldShowLayout) {
+      const shouldForcePolygon =
+        !isLayout && shouldAlwaysShowPolygon(propertyType);
+      if (!showPolygons && !shouldShowLayout && !shouldForcePolygon) {
         return;
       }
       property.polygonPaths.forEach((path, index) => {
